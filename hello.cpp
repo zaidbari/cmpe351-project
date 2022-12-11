@@ -1,3 +1,11 @@
+/**========================================================================
+ * @author         :  Muhammad Zaid Bari
+ * @email          :  zaidbari99@gmail.com
+ * @repo           :  https://github.com/zaidbari/cmpe351-project
+ * @createdOn      :  December 06, 2022
+ * @description    :	CMPE351 Operating systems project for CPU scheduling
+ *========================================================================**/
+
 /* -------------------------------- Libraries ------------------------------- */
 #include <iostream>
 #include <unistd.h>
@@ -6,9 +14,6 @@
 #include <vector>
 #include <sstream>
 #include <cstdint>
-
-/* ------------------------------- Namespaces ------------------------------- */
-// using namespace std;
 
 /* -------------------------- Variable definitaions ------------------------- */
 #define DELIMETER ':'
@@ -30,13 +35,11 @@ struct read_output
 
 struct filenames
 {
-	char *output_file;
-	char *input_file;
+	char *output_file_name;
+	char *input_file_name;
 };
 
-/* -------------------------------------------------------------------------- */
-/*                           function defininations                           */
-/* -------------------------------------------------------------------------- */
+/* ------------------------- function defininations ------------------------- */
 filenames getCommandLineArguments(int argc, char *argv[]);
 read_output readInputFile(std::string input_file_name);
 
@@ -57,8 +60,8 @@ int main(int argc, char *argv[])
 {
 
 	/* -------------- get command line arguments and store results -------------- */
-	auto [input_file_name, output_file_name] = getCommandLineArguments(argc, argv);
-	auto [header, number_of_process] = readInputFile(input_file_name);
+	filenames files = getCommandLineArguments(argc, argv);
+	read_output output = readInputFile(files.input_file_name);
 
 	int option, type;
 	float quantum_time = 0;
@@ -72,14 +75,12 @@ int main(int argc, char *argv[])
 		if (option == 1)
 		{
 			system("clear");
-
 			do
 			{
-
 				type = displaySchedulingMenu();
 				if (type == 4)
 				{
-					std::cout << "Input quantum time value: ";
+					std::cout << " Input quantum time value: ";
 					std::cin >> quantum_time;
 				}
 			} while (type != 1 && type != 2 && type != 3 && type != 4);
@@ -89,13 +90,11 @@ int main(int argc, char *argv[])
 			premtive = !premtive;
 
 		if (option == 3)
-		{
 			if (type == 1)
 			{
 				system("clear");
-				displayFCFS(&header, number_of_process);
+				displayFCFS(&output.header, output.number_of_process);
 			}
-		}
 	} while (option != 4 && option != 3);
 
 	exit(EXIT_SUCCESS);
@@ -123,12 +122,13 @@ filenames getCommandLineArguments(int argc, char *argv[])
 			i++;
 		}
 
-	return filenames{input_file_name, output_file_name};
+	return filenames{output_file_name, input_file_name};
 }
 
 /**
 *	@brief read input file and return a structure
-*	@param string input_file_name
+*
+*	@param input_file_name
 
 *	@return void
 */
@@ -169,9 +169,10 @@ read_output readInputFile(std::string input_file_name)
 
 /**
  *	@brief display menu on cli for user input selection
- *	@param bool premtive
- *	@param int type
- *	@param int qt
+ *
+ *	@param premtive boolean to check if preemptive type is selected
+ *	@param type type of scheduling method selected enum[1,2,3,4]
+ *	@param qt quantam time value if type = 4 | Round-Robin Algorithm
  *
  *	@return void
  */
@@ -202,19 +203,15 @@ int displayMenu(bool premtive = false, int type = 0, float qt = 0)
 		break;
 	}
 
-	std::cout << "\n"
-						<< std::endl;
-	std::cout << " |------------------------------------ ^ -----------------------------------| " << std::endl;
-	std::cout << " |--------------------------------- WELCOME --------------------------------| " << std::endl;
-	std::cout << " |------------------------------------ v -----------------------------------| " << std::endl;
-	std::cout << "\n"
-						<< std::endl;
+	std::cout << " --------------------------------- WELCOME -------------------------------- " << std::endl;
+	std::cout << std::endl;
 
 	std::cout << " [1]: Scheduling Method (" << scheduling_method << ") " << (qt > 0 ? "| QT = " + std::to_string(qt) : " ") << std::endl;
 	std::cout << " [2]: Preemptive Mode (" << (premtive ? "YES" : "NO") << ") " << std::endl;
 	std::cout << " [3]: Show results" << std::endl;
 	std::cout << " [4]: End Program" << std::endl;
 
+	std::cout << std::endl;
 	std::cout << "-----------------------------------------------------------------------" << std::endl;
 	std::cout << " Option: ";
 	std::cin >> option;
@@ -230,14 +227,15 @@ int displayMenu(bool premtive = false, int type = 0, float qt = 0)
 int displaySchedulingMenu()
 {
 	int type = 0;
-	std::cout << "\n"
-						<< std::endl;
-
 	std::cout << " ------------------------ Select a scheduling method ----------------------- " << std::endl;
+	std::cout << std::endl;
+
 	std::cout << " [1]: First Come, First Serve " << std::endl;
 	std::cout << " [2]: Shortest Job First " << std::endl;
 	std::cout << " [3]: Priority " << std::endl;
 	std::cout << " [4]: Round-Ribbon " << std::endl;
+	std::cout << std::endl;
+
 	std::cout << "-----------------------------------------------------------------------" << std::endl;
 
 	std::cout << " Type: ";
@@ -250,13 +248,16 @@ int displaySchedulingMenu()
 }
 
 /**
- * @brief
+ * @brief create a process linked list with dynamic memory allocation
+ *
  * @param sc <schedule> struct
  * @param number	Process number
- * @param arrival_time
- * @param burst_time
- * @param priority
+ * @param arrival_time Arrival time in miliseconds
+ * @param burst_time Burst time in miliseconds
+ * @param priority Priority of the process
  * @param first_response Number == 1 ? *first_response = arrival_time : *first_response + burst_time
+ *
+ * @return void
  */
 void create_schedule(SCHEDULE_NODE **sc, int number, float arrival_time, float burst_time, int priority, float *first_response)
 {
@@ -291,10 +292,20 @@ void create_schedule(SCHEDULE_NODE **sc, int number, float arrival_time, float b
 	}
 }
 
+/**
+ * @brief display results for first come first serve algorithm
+ *
+ * @param processes process linked list pointer
+ * @param number_of_processes Total number of processes from input file
+ *
+ * @return void
+ */
 void displayFCFS(SCHEDULE_NODE *processes, int number_of_processes)
 {
 	float total_waiting_time = 0;
 	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
+	std::cout << std::endl;
+
 	std::cout << " Process Waitng times: " << std::endl;
 
 	while (processes != NULL)
@@ -303,6 +314,8 @@ void displayFCFS(SCHEDULE_NODE *processes, int number_of_processes)
 		total_waiting_time += processes->waiting_time;
 		processes = processes->next;
 	}
+	std::cout << std::endl;
+
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 	std::cout << " Average waiting time: " << total_waiting_time / number_of_processes << "ms" << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
