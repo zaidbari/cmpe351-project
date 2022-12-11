@@ -52,6 +52,7 @@ void createSchedule(SCHEDULE_NODE **sc, int no, float arrival_time, float burst_
 
 /**
  * @brief Main entry point
+ *
  * @param argc Argument count (contains the number of arguments)
  * @param argv  Argument vector (contains argument's values)
  *
@@ -83,41 +84,50 @@ int main(int argc, char *argv[])
 	float quantum_time = 0;
 	bool premtive = false;
 
+	/* -------------------------- display menu options -------------------------- */
 	do
 	{
-		system("clear");
-
 		option = displayMenu(premtive, type, quantum_time);
 		if (option == 1)
 		{
+			/* ------------------------- display scheduling menu ------------------------ */
 			system("clear");
 			do
 			{
 				type = displaySchedulingMenu();
+				/* -------------------- if round-robin, get quantam time -------------------- */
 				if (type == 4)
 				{
 					std::cout << " Input quantum time value: ";
 					std::cin >> quantum_time;
 				}
+				system("clear");
 			} while (type != 1 && type != 2 && type != 3 && type != 4);
 		}
 
 		if (option == 2)
+		{
 			premtive = !premtive;
-
+			system("clear");
+		}
 		if (option == 3)
 			if (type == 1)
 			{
 				system("clear");
 				displayFCFS(&output.header, output.number_of_process);
 			}
-	} while (option != 4 && option != 3);
+			else if (type == 2)
+			{
+				displayFCFS(&output.header, output.number_of_process);
+			}
+	} while (option != 4);
 
 	exit(EXIT_SUCCESS);
 }
 
 /**
  * @brief get command line arguments
+ *
  * @param argc Argument count (contains the number of arguments)
  * @param argv  Argument vector (contains argument's values)
  *
@@ -265,7 +275,7 @@ int displaySchedulingMenu()
 /**
  * @brief create a process linked list with dynamic memory allocation
  *
- * @param sc <schedule> struct
+ * @param head <schedule> struct | head of the linked list
  * @param number	Process number
  * @param arrival_time Arrival time in miliseconds
  * @param burst_time Burst time in miliseconds
@@ -274,10 +284,10 @@ int displaySchedulingMenu()
  *
  * @return void
  */
-void createSchedule(SCHEDULE_NODE **sc, int number, float arrival_time, float burst_time, int priority, float *first_response)
+void createSchedule(SCHEDULE_NODE **head, int number, float arrival_time, float burst_time, int priority, float *first_response)
 {
 
-	SCHEDULE_NODE *schedule_node, *r = *sc;
+	SCHEDULE_NODE *schedule_node, *tail = *head;
 	schedule_node = (SCHEDULE_NODE *)malloc(sizeof(SCHEDULE_NODE));
 
 	schedule_node->number = number;
@@ -289,33 +299,28 @@ void createSchedule(SCHEDULE_NODE **sc, int number, float arrival_time, float bu
 	schedule_node->turnaround_time = schedule_node->process_completed - arrival_time;
 	schedule_node->waiting_time = schedule_node->turnaround_time - burst_time;
 	schedule_node->relative_delay = schedule_node->turnaround_time / burst_time;
-
 	*first_response = *first_response + burst_time;
-
 	schedule_node->next = NULL;
-	if (*sc == NULL)
-	{
-		*sc = schedule_node;
-	}
+
+	if (*head == NULL)
+		*head = schedule_node;
 	else
 	{
-		while (r->next != NULL)
-		{
-			r = r->next;
-		}
-		r->next = schedule_node;
+		while (tail->next != NULL)
+			tail = tail->next;
+		tail->next = schedule_node;
 	}
 }
 
 /**
  * @brief display results for first come first serve algorithm
  *
- * @param processes process linked list pointer
+ * @param head head of linked list pointer
  * @param number_of_processes Total number of processes from input file
  *
  * @return void
  */
-void displayFCFS(SCHEDULE_NODE *processes, int number_of_processes)
+void displayFCFS(SCHEDULE_NODE *head, int number_of_processes)
 {
 	float total_waiting_time = 0;
 	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
@@ -323,15 +328,15 @@ void displayFCFS(SCHEDULE_NODE *processes, int number_of_processes)
 
 	std::cout << " Process Waitng times: " << std::endl;
 
-	while (processes != NULL)
+	while (head != NULL)
 	{
-		std::cout << " P[" << processes->number << "]: " << processes->waiting_time << "ms" << std::endl;
-		total_waiting_time += processes->waiting_time;
-		processes = processes->next;
+		std::cout << " > P" << head->number << ": " << head->waiting_time << "ms" << std::endl;
+		total_waiting_time += head->waiting_time;
+		head = head->next;
 	}
 	std::cout << std::endl;
 
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " Average waiting time: " << total_waiting_time / number_of_processes << "ms" << std::endl;
+	std::cout << " > Average waiting time: " << total_waiting_time / number_of_processes << "ms" << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 }
