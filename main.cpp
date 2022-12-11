@@ -14,6 +14,7 @@
 #include <vector>
 #include <sstream>
 #include <cstdint>
+#include <filesystem>
 
 /* -------------------------- Variable definitaions ------------------------- */
 #define DELIMETER ':'
@@ -47,7 +48,7 @@ int displayMenu(bool premtive, int type, float qt);
 int displaySchedulingMenu();
 
 void displayFCFS(SCHEDULE_NODE *p, int process);
-void create_schedule(SCHEDULE_NODE **sc, int no, float arrival_time, float burst_time, int priority, float *first_response);
+void createSchedule(SCHEDULE_NODE **sc, int no, float arrival_time, float burst_time, int priority, float *first_response);
 
 /**
  * @brief Main entry point
@@ -61,6 +62,21 @@ int main(int argc, char *argv[])
 
 	/* -------------- get command line arguments and store results -------------- */
 	filenames files = getCommandLineArguments(argc, argv);
+
+	/* ----------------- check if input file exists in directory ---------------- */
+	if (!std::filesystem::exists(files.input_file_name))
+	{
+		system("clear");
+
+		std::cout << " -------------------------------------------------------------------------- " << std::endl;
+		std::cerr << " ERROR: "
+							<< "\"" << files.input_file_name << "\""
+							<< " doesn't exists or is un-reachable" << std::endl;
+		std::cout << " -------------------------------------------------------------------------- " << std::endl;
+
+		exit(EXIT_FAILURE);
+	}
+
 	read_output output = readInputFile(files.input_file_name);
 
 	int option, type;
@@ -157,7 +173,7 @@ read_output readInputFile(std::string input_file_name)
 			if (number_of_process == 0)
 				first_response = stof(arrival_time);
 
-			create_schedule(&header, number_of_process, stof(arrival_time), stof(burst_time), stoi(priority), &first_response);
+			createSchedule(&header, number_of_process, stof(arrival_time), stof(burst_time), stoi(priority), &first_response);
 
 			number_of_process++;
 		}
@@ -178,7 +194,6 @@ read_output readInputFile(std::string input_file_name)
  */
 int displayMenu(bool premtive = false, int type = 0, float qt = 0)
 {
-
 	int option = 0;
 	std::string scheduling_method = "None";
 	switch (type)
@@ -259,7 +274,7 @@ int displaySchedulingMenu()
  *
  * @return void
  */
-void create_schedule(SCHEDULE_NODE **sc, int number, float arrival_time, float burst_time, int priority, float *first_response)
+void createSchedule(SCHEDULE_NODE **sc, int number, float arrival_time, float burst_time, int priority, float *first_response)
 {
 
 	SCHEDULE_NODE *schedule_node, *r = *sc;

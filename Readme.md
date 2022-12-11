@@ -25,7 +25,7 @@ you should commit your code on github.
 
 ### Compilation command
 ``` cmd 
-g++ -o cpe351.exe hello.cpp 
+g++ -o cpe351.exe main.cpp 
 ```
 
 
