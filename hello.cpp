@@ -5,6 +5,7 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
+#include <cstdint>
 
 /* ------------------------------- Namespaces ------------------------------- */
 // using namespace std;
@@ -13,11 +14,18 @@
 #define DELIMETER ':'
 
 /* ------------------------- Structure definiations ------------------------- */
-struct schedule_table
+
+typedef struct schedule
 {
-	int burst_time;
-	int arrival_time;
-	int priority;
+	float burst_time, arrival_time, turnaround_time, relative_delay, waiting_time, response_time, process_completed;
+	int number, priority;
+	struct schedule *next;
+} SCHEDULE_NODE;
+
+struct read_output
+{
+	schedule header;
+	int number_of_process;
 };
 
 struct filenames
@@ -26,12 +34,17 @@ struct filenames
 	char *input_file;
 };
 
+/* -------------------------------------------------------------------------- */
+/*                           function defininations                           */
+/* -------------------------------------------------------------------------- */
 filenames getCommandLineArguments(int argc, char *argv[]);
-std::vector<schedule_table> readInputFile(std::string input_file_name);
+read_output readInputFile(std::string input_file_name);
 
-void displayInputFile(std::vector<schedule_table> input_values);
-int displayMenu(bool premtive, int type, int qt);
+int displayMenu(bool premtive, int type, float qt);
 int displaySchedulingMenu();
+
+void displayFCFS(SCHEDULE_NODE *p, int process);
+void create_schedule(SCHEDULE_NODE **sc, int no, float arrival_time, float burst_time, int priority, float *first_response);
 
 /**
  * @brief Main entry point
@@ -45,19 +58,24 @@ int main(int argc, char *argv[])
 
 	/* -------------- get command line arguments and store results -------------- */
 	auto [input_file_name, output_file_name] = getCommandLineArguments(argc, argv);
-	std::vector<schedule_table> input_values = readInputFile(input_file_name);
+	auto [header, number_of_process] = readInputFile(input_file_name);
 
-	int option, type, quantum_time = 0;
+	int option, type;
+	float quantum_time = 0;
 	bool premtive = false;
 
 	do
 	{
 		system("clear");
+
 		option = displayMenu(premtive, type, quantum_time);
 		if (option == 1)
 		{
+			system("clear");
+
 			do
 			{
+
 				type = displaySchedulingMenu();
 				if (type == 4)
 				{
@@ -66,9 +84,17 @@ int main(int argc, char *argv[])
 				}
 			} while (type != 1 && type != 2 && type != 3 && type != 4);
 		}
+
 		if (option == 2)
-		{
 			premtive = !premtive;
+
+		if (option == 3)
+		{
+			if (type == 1)
+			{
+				system("clear");
+				displayFCFS(&header, number_of_process);
+			}
 		}
 	} while (option != 4 && option != 3);
 
@@ -104,60 +130,41 @@ filenames getCommandLineArguments(int argc, char *argv[])
 *	@brief read input file and return a structure
 *	@param string input_file_name
 
-*	@return vector<schedule_table>
+*	@return void
 */
-std::vector<schedule_table> readInputFile(std::string input_file_name)
+read_output readInputFile(std::string input_file_name)
 {
-	/* ------------------ input/output file stream declarations ----------------- */
-	std::ifstream inFile(input_file_name);
+	SCHEDULE_NODE *header = NULL;
 
-	/* ---------------------- vector to store input values ---------------------- */
-	std::vector<schedule_table> values;
+	/* ------------------ input/output file stream declarations ----------------- */
+	std::ifstream inFile(input_file_name, std::ios::in);
+	int number_of_process = 0;
 
 	if (inFile.is_open())
 	{
 		std::string line;
+
 		while (std::getline(inFile, line))
 		{
-			schedule_table row;
-
 			std::stringstream ss(line);
 			std::string burst_time, arrival_time, priority;
+			float first_response;
 
 			std::getline(ss, burst_time, DELIMETER);
 			std::getline(ss, arrival_time, DELIMETER);
 			std::getline(ss, priority, DELIMETER);
 
-			/* ------------------ row of input values from single line ------------------ */
-			row.burst_time = stoi(burst_time);
-			row.arrival_time = stoi(arrival_time);
-			row.priority = stoi(priority);
+			if (number_of_process == 0)
+				first_response = stof(arrival_time);
 
-			values.push_back(row);
+			create_schedule(&header, number_of_process, stof(arrival_time), stof(burst_time), stoi(priority), &first_response);
+
+			number_of_process++;
 		}
-
 		inFile.close();
 	}
 
-	return values;
-}
-
-/**
-*	@brief display contents of input file
-*	@param vector<schedule_table> input_values
-
-*	@return void
-*/
-void displayInputFile(std::vector<schedule_table> input_values)
-{
-	for (int i = 0; i < input_values.size(); i++)
-	{
-		std::cout
-				<< " " << input_values[i].burst_time
-				<< " " << input_values[i].arrival_time
-				<< " " << input_values[i].priority
-				<< std::endl;
-	}
+	return read_output{*header, number_of_process};
 }
 
 /**
@@ -168,7 +175,7 @@ void displayInputFile(std::vector<schedule_table> input_values)
  *
  *	@return void
  */
-int displayMenu(bool premtive = false, int type = 0, int qt = 0)
+int displayMenu(bool premtive = false, int type = 0, float qt = 0)
 {
 
 	int option = 0;
@@ -240,4 +247,63 @@ int displaySchedulingMenu()
 						<< std::endl;
 
 	return type;
+}
+
+/**
+ * @brief
+ * @param sc <schedule> struct
+ * @param number	Process number
+ * @param arrival_time
+ * @param burst_time
+ * @param priority
+ * @param first_response Number == 1 ? *first_response = arrival_time : *first_response + burst_time
+ */
+void create_schedule(SCHEDULE_NODE **sc, int number, float arrival_time, float burst_time, int priority, float *first_response)
+{
+
+	SCHEDULE_NODE *schedule_node, *r = *sc;
+	schedule_node = (SCHEDULE_NODE *)malloc(sizeof(SCHEDULE_NODE));
+
+	schedule_node->number = number;
+	schedule_node->arrival_time = arrival_time;
+	schedule_node->burst_time = burst_time;
+	schedule_node->priority = priority;
+	schedule_node->response_time = *first_response - arrival_time;
+	schedule_node->process_completed = *first_response + burst_time;
+	schedule_node->turnaround_time = schedule_node->process_completed - arrival_time;
+	schedule_node->waiting_time = schedule_node->turnaround_time - burst_time;
+	schedule_node->relative_delay = schedule_node->turnaround_time / burst_time;
+
+	*first_response = *first_response + burst_time;
+
+	schedule_node->next = NULL;
+	if (*sc == NULL)
+	{
+		*sc = schedule_node;
+	}
+	else
+	{
+		while (r->next != NULL)
+		{
+			r = r->next;
+		}
+		r->next = schedule_node;
+	}
+}
+
+void displayFCFS(SCHEDULE_NODE *processes, int number_of_processes)
+{
+	float total_waiting_time = 0;
+	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
+	std::cout << " Process Waitng times: " << std::endl;
+
+	while (processes != NULL)
+	{
+		std::cout << " P[" << processes->number << "]: " << processes->waiting_time << "ms" << std::endl;
+		total_waiting_time += processes->waiting_time;
+		processes = processes->next;
+	}
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	std::cout << " Average waiting time: " << total_waiting_time / number_of_processes << "ms" << std::endl;
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 }
