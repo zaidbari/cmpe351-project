@@ -21,16 +21,17 @@
 
 /* ------------------------- Structure definiations ------------------------- */
 
-typedef struct schedule
+typedef struct process
 {
-	float burst_time, arrival_time, turnaround_time, relative_delay, waiting_time, response_time, process_completed;
+	float burst_time, arrival_time;
 	int number, priority;
-	struct schedule *next;
-} SCHEDULE_NODE;
+	process *next;
+
+} PROCESS_LIST;
 
 struct read_output
 {
-	schedule header;
+	process header;
 	int number_of_process;
 };
 
@@ -47,8 +48,8 @@ read_output readInputFile(std::string input_file_name);
 int displayMenu(bool premtive, int type, float qt);
 int displaySchedulingMenu();
 
-void displayFCFS(SCHEDULE_NODE *p, int process);
-void createSchedule(SCHEDULE_NODE **sc, int no, float arrival_time, float burst_time, int priority, float *first_response);
+void displayFCFS(PROCESS_LIST *p, int process);
+void createSchedule(PROCESS_LIST **head, int no, float arrival_time, float burst_time, int priority);
 
 /**
  * @brief Main entry point
@@ -160,11 +161,11 @@ filenames getCommandLineArguments(int argc, char *argv[])
 */
 read_output readInputFile(std::string input_file_name)
 {
-	SCHEDULE_NODE *header = NULL;
+	PROCESS_LIST *header = NULL; // PROCESSES linked list head
 
 	/* ------------------ input/output file stream declarations ----------------- */
 	std::ifstream inFile(input_file_name, std::ios::in);
-	int number_of_process = 0;
+	int number_of_process = 1; // Current Process number while inside the loop | Total number - 1 of processes after reading the file
 
 	if (inFile.is_open())
 	{
@@ -174,23 +175,19 @@ read_output readInputFile(std::string input_file_name)
 		{
 			std::stringstream ss(line);
 			std::string burst_time, arrival_time, priority;
-			float first_response;
-
 			std::getline(ss, burst_time, DELIMETER);
 			std::getline(ss, arrival_time, DELIMETER);
 			std::getline(ss, priority, DELIMETER);
 
-			if (number_of_process == 0)
-				first_response = stof(arrival_time);
-
-			createSchedule(&header, number_of_process, stof(arrival_time), stof(burst_time), stoi(priority), &first_response);
+			createSchedule(
+					&header, number_of_process, stof(arrival_time), stof(burst_time), stoi(priority));
 
 			number_of_process++;
 		}
 		inFile.close();
 	}
 
-	return read_output{*header, number_of_process};
+	return read_output{*header, (number_of_process - 1)};
 }
 
 /**
@@ -276,30 +273,23 @@ int displaySchedulingMenu()
  * @brief create a process linked list with dynamic memory allocation
  *
  * @param head <schedule> struct | head of the linked list
- * @param number	Process number
+ * @param processNumber	Process number
  * @param arrival_time Arrival time in miliseconds
  * @param burst_time Burst time in miliseconds
  * @param priority Priority of the process
- * @param first_response Number == 1 ? *first_response = arrival_time : *first_response + burst_time
  *
  * @return void
  */
-void createSchedule(SCHEDULE_NODE **head, int number, float arrival_time, float burst_time, int priority, float *first_response)
+void createSchedule(PROCESS_LIST **head, int processNumber, float arrival_time, float burst_time, int priority)
 {
 
-	SCHEDULE_NODE *schedule_node, *tail = *head;
-	schedule_node = (SCHEDULE_NODE *)malloc(sizeof(SCHEDULE_NODE));
+	PROCESS_LIST *schedule_node, *tail = *head;
+	schedule_node = (PROCESS_LIST *)malloc(sizeof(PROCESS_LIST));
 
-	schedule_node->number = number;
+	schedule_node->number = processNumber;
 	schedule_node->arrival_time = arrival_time;
 	schedule_node->burst_time = burst_time;
 	schedule_node->priority = priority;
-	schedule_node->response_time = *first_response - arrival_time;
-	schedule_node->process_completed = *first_response + burst_time;
-	schedule_node->turnaround_time = schedule_node->process_completed - arrival_time;
-	schedule_node->waiting_time = schedule_node->turnaround_time - burst_time;
-	schedule_node->relative_delay = schedule_node->turnaround_time / burst_time;
-	*first_response = *first_response + burst_time;
 	schedule_node->next = NULL;
 
 	if (*head == NULL)
@@ -320,9 +310,10 @@ void createSchedule(SCHEDULE_NODE **head, int number, float arrival_time, float 
  *
  * @return void
  */
-void displayFCFS(SCHEDULE_NODE *head, int number_of_processes)
+void displayFCFS(PROCESS_LIST *head, int number_of_processes)
 {
-	float total_waiting_time = 0;
+
+	float first_response = 0.0f, total_waiting_time = 0.0f, turnaround_time = 0.0f, waiting_time = 0.0f;
 	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
 	std::cout << std::endl;
 
@@ -330,8 +321,16 @@ void displayFCFS(SCHEDULE_NODE *head, int number_of_processes)
 
 	while (head != NULL)
 	{
-		std::cout << " > P" << head->number << ": " << head->waiting_time << "ms" << std::endl;
-		total_waiting_time += head->waiting_time;
+		if (head->number == 1)
+			first_response = head->arrival_time;
+
+		turnaround_time = (first_response + head->burst_time) - head->arrival_time;
+		waiting_time = turnaround_time - head->burst_time;
+		std::cout << " > P" << head->number << ": " << waiting_time << "ms" << std::endl;
+
+		total_waiting_time += waiting_time;
+		first_response = first_response + head->burst_time;
+
 		head = head->next;
 	}
 	std::cout << std::endl;
