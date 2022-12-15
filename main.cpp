@@ -180,7 +180,12 @@ read_output readInputFile(std::string input_file_name)
 			std::getline(ss, priority, DELIMETER);
 
 			createSchedule(
-					&header, number_of_process, stof(arrival_time), stof(burst_time), stoi(priority));
+					&header,						// linked list head
+					number_of_process,	// Current process number
+					stof(arrival_time), // Arrival time of current process | casting string to float
+					stof(burst_time),		// Burst time of current process | casting string to float
+					stoi(priority)			// Priority of current process | casting string to integer
+			);
 
 			number_of_process++;
 		}
@@ -212,7 +217,7 @@ int displayMenu(bool premtive = false, int type = 0, float qt = 0)
 		scheduling_method = "FCFS";
 		break;
 	case 2:
-		scheduling_method = "SJFS";
+		scheduling_method = "SJF";
 		break;
 	case 3:
 		scheduling_method = "PRIORITY";
@@ -273,20 +278,20 @@ int displaySchedulingMenu()
  * @brief create a process linked list with dynamic memory allocation
  *
  * @param head <schedule> struct | head of the linked list
- * @param processNumber	Process number
+ * @param process_number	Process number
  * @param arrival_time Arrival time in miliseconds
  * @param burst_time Burst time in miliseconds
  * @param priority Priority of the process
  *
  * @return void
  */
-void createSchedule(PROCESS_LIST **head, int processNumber, float arrival_time, float burst_time, int priority)
+void createSchedule(PROCESS_LIST **head, int process_number, float arrival_time, float burst_time, int priority)
 {
 
 	PROCESS_LIST *schedule_node, *tail = *head;
 	schedule_node = (PROCESS_LIST *)malloc(sizeof(PROCESS_LIST));
 
-	schedule_node->number = processNumber;
+	schedule_node->number = process_number;
 	schedule_node->arrival_time = arrival_time;
 	schedule_node->burst_time = burst_time;
 	schedule_node->priority = priority;
@@ -306,14 +311,14 @@ void createSchedule(PROCESS_LIST **head, int processNumber, float arrival_time, 
  * @brief display results for first come first serve algorithm
  *
  * @param head head of linked list pointer
- * @param number_of_processes Total number of processes from input file
+ * @param total_number_of_processes Total number of processes from input file
  *
  * @return void
  */
-void displayFCFS(PROCESS_LIST *head, int number_of_processes)
+void displayFCFS(PROCESS_LIST *head, int total_number_of_processes)
 {
 
-	float first_response = 0.0f, total_waiting_time = 0.0f, turnaround_time = 0.0f, waiting_time = 0.0f;
+	float first_response = 0.0f, total_waiting_time = 0.0f, turnaround_time = 0.0f, waiting_time_of_current_process = 0.0f;
 	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
 	std::cout << std::endl;
 
@@ -325,10 +330,10 @@ void displayFCFS(PROCESS_LIST *head, int number_of_processes)
 			first_response = head->arrival_time;
 
 		turnaround_time = (first_response + head->burst_time) - head->arrival_time;
-		waiting_time = turnaround_time - head->burst_time;
-		std::cout << " > P" << head->number << ": " << waiting_time << "ms" << std::endl;
+		waiting_time_of_current_process = turnaround_time - head->burst_time;
+		std::cout << " > P" << head->number << ": " << waiting_time_of_current_process << "ms" << std::endl;
 
-		total_waiting_time += waiting_time;
+		total_waiting_time += waiting_time_of_current_process;
 		first_response = first_response + head->burst_time;
 
 		head = head->next;
@@ -336,6 +341,6 @@ void displayFCFS(PROCESS_LIST *head, int number_of_processes)
 	std::cout << std::endl;
 
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / number_of_processes << "ms" << std::endl;
+	std::cout << " > Average waiting time: " << total_waiting_time / total_number_of_processes << "ms" << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 }
