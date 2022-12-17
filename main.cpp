@@ -8,31 +8,29 @@
 
 /* -------------------------------- Libraries ------------------------------- */
 #include <iostream>
-#include <unistd.h>
-#include <string.h>
 #include <fstream>
-#include <vector>
 #include <sstream>
-// #include <cstdint>
 #include <filesystem>
+#include <cstring>
 
 /* -------------------------- Variable definitaions ------------------------- */
 #define DELIMETER ':'
 #define INT_MAX 2147483647
+
+/* ---------------------------- Global Variables ---------------------------- */
+int TOTAL_PROCESS = 0;
 /* ------------------------- Structure definiations ------------------------- */
 
-typedef struct process
+struct Process
 {
-	float burst_time, arrival_time, remaining_time, waiting_time;
-	int number, priority;
-	process *next;
-
-} PROCESS_LIST;
-
-struct read_output
-{
-	process header;
-	int number_of_process;
+	int pid;
+	float burst_time;
+	float arrival_time;
+	int priority;
+	float remaining_time;
+	float waiting_time;
+	Process *next;
+	Process *prev;
 };
 
 struct filenames
@@ -41,19 +39,19 @@ struct filenames
 	char *input_file_name;
 };
 
-PROCESS_LIST *header = NULL; // PROCESSES linked list head
+Process *head = NULL; // PROCESSES linked list head
 
 /* ------------------------- function defininations ------------------------- */
 filenames getCommandLineArguments(int argc, char *argv[]);
-read_output readInputFile(std::string input_file_name);
+void readInputFile(std::string input_file_name);
 
 int displayMenu(bool premtive, int type, float qt);
 int displaySchedulingMenu();
 
-void createSchedule(PROCESS_LIST **head, int no, float arrival_time, float burst_time, int priority);
+void createProcess(Process **head, int no, float arrival_time, float burst_time, int priority);
 
-void calculateFCFS(int process);
-void calculateSJF(int total_number_of_processes, bool isPreemptive);
+void calculateFCFS();
+void calculateSJF(bool isPreemptive);
 
 /**
  * @brief Main entry point
@@ -83,16 +81,17 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	read_output output = readInputFile(files.input_file_name);
+	/* ------------------ read input file and create processes ------------------ */
+	readInputFile(files.input_file_name);
 
 	int option, type;
-	float quantum_time = 0;
+	float time_quantum = 0.0f;
 	bool isPreemptive = false;
 
 	/* -------------------------- display menu options -------------------------- */
 	do
 	{
-		option = displayMenu(isPreemptive, type, quantum_time);
+		option = displayMenu(isPreemptive, type, time_quantum);
 		if (option == 1)
 		{
 			/* ------------------------- display scheduling menu ------------------------ */
@@ -104,7 +103,7 @@ int main(int argc, char *argv[])
 				if (type == 4)
 				{
 					std::cout << " Input quantum time value: ";
-					std::cin >> quantum_time;
+					std::cin >> time_quantum;
 				}
 				system("clear");
 			} while (type != 1 && type != 2 && type != 3 && type != 4);
@@ -119,11 +118,11 @@ int main(int argc, char *argv[])
 			if (type == 1)
 			{
 				system("clear");
-				calculateFCFS(output.number_of_process);
+				calculateFCFS();
 			}
 			else if (type == 2)
 			{
-				calculateSJF(output.number_of_process, isPreemptive);
+				calculateSJF(isPreemptive);
 			}
 	} while (option != 4);
 
@@ -134,7 +133,7 @@ int main(int argc, char *argv[])
  * @brief get command line arguments
  *
  * @param argc Argument count (contains the number of arguments)
- * @param argv  Argument vector (contains argument's values)
+ * @param argv Argument vector (contains argument's values)
  *
  * @return filenames structure
  */
@@ -163,12 +162,11 @@ filenames getCommandLineArguments(int argc, char *argv[])
 
 *	@return void
 */
-read_output readInputFile(std::string input_file_name)
+void readInputFile(std::string input_file_name)
 {
-
 	/* ------------------ input/output file stream declarations ----------------- */
 	std::ifstream inFile(input_file_name, std::ios::in);
-	int number_of_process = 1; // Current Process number while inside the loop | Total number - 1 of processes after reading the file
+	int number_of_process = 0; // Current Process number while inside the loop | Total number - 1 of processes after reading the file
 
 	if (inFile.is_open())
 	{
@@ -181,21 +179,19 @@ read_output readInputFile(std::string input_file_name)
 			std::getline(ss, burst_time, DELIMETER);
 			std::getline(ss, arrival_time, DELIMETER);
 			std::getline(ss, priority, DELIMETER);
+			number_of_process++;
 
-			createSchedule(
-					&header,						// linked list head
+			createProcess(
+					&head,							// linked list head
 					number_of_process,	// Current process number
 					stof(arrival_time), // Arrival time of current process | casting string to float
 					stof(burst_time),		// Burst time of current process | casting string to float
 					stoi(priority)			// Priority of current process | casting string to integer
 			);
-
-			number_of_process++;
 		}
 		inFile.close();
+		TOTAL_PROCESS = number_of_process;
 	}
-
-	return read_output{*header, (number_of_process - 1)};
 }
 
 /**
@@ -243,7 +239,7 @@ int displayMenu(bool premtive = false, int type = 0, float qt = 0)
 
 	std::cout << std::endl;
 	std::cout << "-----------------------------------------------------------------------" << std::endl;
-	std::cout << " Option: ";
+	std::cout << " Option> ";
 	std::cin >> option;
 
 	return option;
@@ -268,7 +264,7 @@ int displaySchedulingMenu()
 
 	std::cout << "-----------------------------------------------------------------------" << std::endl;
 
-	std::cout << " Type: ";
+	std::cout << " Option> ";
 	std::cin >> type;
 
 	std::cout << "\n"
@@ -288,18 +284,9 @@ int displaySchedulingMenu()
  *
  * @return void
  */
-void createSchedule(PROCESS_LIST **head, int process_number, float arrival_time, float burst_time, int priority)
+void createProcess(Process **head, int process_number, float arrival_time, float burst_time, int priority)
 {
-
-	PROCESS_LIST *schedule_node, *tail = *head;
-	schedule_node = (PROCESS_LIST *)malloc(sizeof(PROCESS_LIST));
-
-	schedule_node->number = process_number;
-	schedule_node->arrival_time = arrival_time;
-	schedule_node->burst_time = burst_time;
-	schedule_node->priority = priority;
-	schedule_node->remaining_time = schedule_node->burst_time;
-	schedule_node->next = NULL;
+	Process *tail = *head, *schedule_node = new Process{process_number, burst_time, arrival_time, priority};
 
 	if (*head == NULL)
 		*head = schedule_node;
@@ -314,12 +301,9 @@ void createSchedule(PROCESS_LIST **head, int process_number, float arrival_time,
 /**
  * @brief display results for first come first serve algorithm
  *
- * @param head head of linked list pointer
- * @param total_number_of_processes Total number of processes from input file
- *
  * @return void
  */
-void calculateFCFS(int total_number_of_processes)
+void calculateFCFS()
 {
 
 	float first_response = 0.0f, total_waiting_time = 0.0f, turnaround_time = 0.0f;
@@ -327,41 +311,41 @@ void calculateFCFS(int total_number_of_processes)
 	std::cout << std::endl;
 
 	std::cout << " Process Waitng times: " << std::endl;
-	PROCESS_LIST *firstNode = header;
+	Process *firstNode = head; // Saving the first node reference
 
-	while (header != NULL)
+	while (head != NULL)
 	{
-		if (header->number == 1)
-			first_response = header->arrival_time;
+		if (head->pid == 1)
+			first_response = head->arrival_time;
 
-		turnaround_time = (first_response + header->burst_time) - header->arrival_time;
-		header->waiting_time = turnaround_time - header->burst_time;
-		std::cout << " > P" << header->number << ": " << header->waiting_time << "ms" << std::endl;
+		turnaround_time = (first_response + head->burst_time) - head->arrival_time;
+		head->waiting_time = turnaround_time - head->burst_time;
+		std::cout << " > P" << head->pid << ": " << head->waiting_time << "ms" << std::endl;
 
-		total_waiting_time += header->waiting_time;
-		first_response = first_response + header->burst_time;
-
-		header = header->next;
+		total_waiting_time += head->waiting_time;
+		first_response = first_response + head->burst_time;
+		head = head->next;
 	}
 
-	header = firstNode;
+	head = firstNode; // updating head to point to the first node
 	std::cout << std::endl;
 
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / total_number_of_processes << "ms" << std::endl;
+	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 }
 
 /**
  * @brief display results for first come first serve algorithm
  *
- * @param head head of linked list pointer
- * @param total_number_of_processes Total number of processes from input file
+ * @param isPreemptive Check for premtive mode
  *
  * @return void
  */
-void calculateSJF(int total_number_of_processes, bool isPreemptive)
+void calculateSJF(bool isPreemptive)
 {
+	Process *firstNode = head, *shortest = NULL;
+
 	float first_response = 0.0f, total_waiting_time = 0.0f, turnaround_time = 0.0f, waiting_time_of_current_process = 0.0f, total = 0.0f;
 
 	int clock = 0, counter = 0, complete = 0, time_taken, index = 1;
@@ -374,18 +358,17 @@ void calculateSJF(int total_number_of_processes, bool isPreemptive)
 
 	std::cout << " Process Waitng times: " << std::endl;
 	std::cout << std::endl;
-	PROCESS_LIST *firstNode = header, *shortest = NULL;
 
 	if (isPreemptive)
 	{
-		while (complete != total_number_of_processes)
+		while (complete != TOTAL_PROCESS)
 		{
-			while (header != NULL)
+			while (head != NULL)
 			{
-				if (header->arrival_time <= clock && header->remaining_time < MIN_TIME && header->remaining_time > 0)
+				if (head->arrival_time <= clock && head->remaining_time < MIN_TIME && head->remaining_time > 0)
 				{
-					MIN_TIME = header->remaining_time;
-					shortest = header;
+					MIN_TIME = head->remaining_time;
+					shortest = head;
 					serve = true;
 				}
 
@@ -420,9 +403,9 @@ void calculateSJF(int total_number_of_processes, bool isPreemptive)
 		}
 	}
 
-	header = firstNode;
+	head = firstNode;
 
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / total_number_of_processes << "ms" << std::endl;
+	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 }

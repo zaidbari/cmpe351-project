@@ -57,6 +57,12 @@
 		"numbers": "cpp",
 		"semaphore": "cpp",
 		"stdexcept": "cpp",
-		"typeinfo": "cpp"
+		"typeinfo": "cpp",
+		"cerrno": "cpp",
+		"climits": "cpp",
+		"filesystem": "cpp",
+		"ios": "cpp",
+		"locale": "cpp",
+		"queue": "cpp"
 	}
 }
