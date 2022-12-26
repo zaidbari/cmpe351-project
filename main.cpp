@@ -12,6 +12,8 @@
 #include <sstream>
 #include <filesystem>
 #include <cstring>
+#include <vector>		 //Required for using vectors
+#include <algorithm> //Required for sort() library function
 
 /* -------------------------- Variable definitaions ------------------------- */
 #define DELIMETER ':'
@@ -29,6 +31,8 @@ struct Process
 	int priority;
 	float remaining_time;
 	float waiting_time;
+	float turnaround_time;
+	float completion_time;
 	Process *next;
 	Process *prev;
 };
@@ -41,6 +45,10 @@ struct filenames
 
 Process *head = NULL; // PROCESSES linked list head
 
+/* ---------------------------- sorting function ---------------------------- */
+Process *sortByPID(Process *head);
+Process *sortByBurstTime(Process *head);
+
 /* ------------------------- function defininations ------------------------- */
 filenames getCommandLineArguments(int argc, char *argv[]);
 void readInputFile(std::string input_file_name);
@@ -48,7 +56,7 @@ void readInputFile(std::string input_file_name);
 int displayMenu(bool premtive, int type, float qt);
 int displaySchedulingMenu();
 
-void createProcess(Process **head, int no, float arrival_time, float burst_time, int priority);
+void createProcess(Process **head, int pid, float arrival_time, float burst_time, int priority);
 
 void calculateFCFS();
 void calculateSJF(bool isPreemptive);
@@ -276,25 +284,25 @@ int displaySchedulingMenu()
 /**
  * @brief create a process linked list with dynamic memory allocation
  *
- * @param head <schedule> struct | head of the linked list
- * @param process_number	Process number
+ * @param head <Process> struct | head of the linked list
+ * @param pid	Process number
  * @param arrival_time Arrival time in miliseconds
  * @param burst_time Burst time in miliseconds
  * @param priority Priority of the process
  *
  * @return void
  */
-void createProcess(Process **head, int process_number, float arrival_time, float burst_time, int priority)
+void createProcess(Process **head, int pid, float arrival_time, float burst_time, int priority)
 {
-	Process *tail = *head, *schedule_node = new Process{process_number, burst_time, arrival_time, priority};
+	Process *tail = *head, *current_node = new Process{pid, burst_time, arrival_time, priority};
 
 	if (*head == NULL)
-		*head = schedule_node;
+		*head = current_node;
 	else
 	{
 		while (tail->next != NULL)
 			tail = tail->next;
-		tail->next = schedule_node;
+		tail->next = current_node;
 	}
 }
 
@@ -344,14 +352,16 @@ void calculateFCFS()
  */
 void calculateSJF(bool isPreemptive)
 {
-	Process *firstNode = head, *shortest = NULL;
+	Process *firstNode = head; // keeping a copy of the first node
+	float total_waiting_time = 0.0f, waiting_time_of_current_process = 0.0f, current_time = 0.0f;
 
-	float first_response = 0.0f, total_waiting_time = 0.0f, turnaround_time = 0.0f, waiting_time_of_current_process = 0.0f, total = 0.0f;
+	Process *sorted_list = sortByBurstTime(head);
 
-	int clock = 0, counter = 0, complete = 0, time_taken, index = 1;
-
-	bool serve = false;
-	int MIN_TIME = INT_MAX;
+	if (sorted_list == nullptr)
+	{
+		return; // no processes to schedule
+		std::cout << " NO processes to schedule" << std::endl;
+	}
 
 	std::cout << " --------------- Scheduling Method: Shortest Job First ( " << (isPreemptive ? "Preemptive" : "Non-Preemptive") << " ) --------------- " << std::endl;
 	std::cout << std::endl;
@@ -359,53 +369,143 @@ void calculateSJF(bool isPreemptive)
 	std::cout << " Process Waitng times: " << std::endl;
 	std::cout << std::endl;
 
-	if (isPreemptive)
+	Process *prev = nullptr;
+	Process *curr = sorted_list;
+	while (curr != nullptr)
 	{
-		while (complete != TOTAL_PROCESS)
+		if (prev == nullptr)
 		{
-			while (head != NULL)
-			{
-				if (head->arrival_time <= clock && head->remaining_time < MIN_TIME && head->remaining_time > 0)
-				{
-					MIN_TIME = head->remaining_time;
-					shortest = head;
-					serve = true;
-				}
-
-				index++;
-			}
-
-			if (serve == false)
-			{
-				clock++;
-				continue;
-			}
-
-			shortest->remaining_time--;
-			MIN_TIME = shortest->remaining_time;
-			if (MIN_TIME == 0)
-				MIN_TIME = INT_MAX;
-
-			if (shortest->remaining_time == 0)
-			{
-				complete++;
-				serve = false;
-				turnaround_time = clock + 1;
-				shortest->waiting_time = turnaround_time - shortest->burst_time - shortest->arrival_time;
-				if (shortest->waiting_time < 0)
-				{
-					shortest->waiting_time = 0;
-				}
-
-				total_waiting_time = total_waiting_time + shortest->waiting_time;
-			}
-			clock++;
+			// first process
+			curr->waiting_time = 0;
+			current_time = curr->burst_time;
 		}
+		else
+		{
+			// subsequent processes
+			curr->waiting_time = current_time - curr->arrival_time;
+			current_time += curr->burst_time;
+		}
+		std::cout << "Process " << curr->pid << ": waiting time = " << curr->waiting_time << std::endl;
+		prev = curr;
+		curr = curr->next;
 	}
 
-	head = firstNode;
+	// calculate total waiting time
+	curr = sorted_list;
+	while (curr != nullptr)
+	{
+		total_waiting_time += curr->waiting_time;
+		curr = curr->next;
+	}
+	std::cout << "Total waiting time: " << total_waiting_time << std::endl;
 
+	head = firstNode;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+}
+
+Process *sortByBurstTime(Process *head)
+{
+	if (head == nullptr || head->next == nullptr)
+	{
+		return head; // list is already sorted
+	}
+
+	// create a new linked list to hold the sorted nodes
+	Process *sorted_head = nullptr;
+	Process *sorted_tail = nullptr;
+
+	// iterate through the original list and insert each node into the sorted list in the correct position
+	Process *curr = head;
+	while (curr != nullptr)
+	{
+		// create a new node with the same data as the current node
+		Process *new_node = new Process{curr->pid, curr->burst_time, curr->arrival_time, curr->priority};
+
+		// insert the new node into the sorted list in the correct position
+		if (sorted_head == nullptr || curr->arrival_time < sorted_head->arrival_time ||
+				(curr->arrival_time == sorted_head->arrival_time && curr->burst_time < sorted_head->burst_time))
+		{
+			// insert at the beginning of the list
+			new_node->next = sorted_head;
+			sorted_head = new_node;
+			if (sorted_tail == nullptr)
+			{
+				sorted_tail = new_node;
+			}
+		}
+		else
+		{
+			// insert in the middle or end of the list
+			Process *temp = sorted_head;
+			while (temp->next != nullptr &&
+						 (temp->next->arrival_time < curr->arrival_time ||
+							(temp->next->arrival_time == curr->arrival_time && temp->next->burst_time <= curr->burst_time)))
+			{
+				temp = temp->next;
+			}
+			new_node->next = temp->next;
+			temp->next = new_node;
+			if (temp == sorted_tail)
+			{
+				sorted_tail = new_node;
+			}
+		}
+
+		curr = curr->next;
+	}
+
+	return sorted_head;
+}
+
+Process *sortByPID(Process *head)
+{
+	if (head == nullptr || head->next == nullptr)
+	{
+		return head; // list is already sorted
+	}
+
+	// create a new linked list to hold the sorted nodes
+	Process *sorted_head = nullptr;
+	Process *sorted_tail = nullptr;
+
+	// iterate through the original list and insert each node into the sorted list in the correct position
+	Process *curr = head;
+	while (curr != nullptr)
+	{
+		// create a new node with the same data as the current node
+		Process *new_node = new Process{curr->pid, curr->burst_time, curr->arrival_time, curr->priority};
+
+		// insert the new node into the sorted list in the correct position
+		if (sorted_head == nullptr || curr->pid < sorted_head->pid)
+		{
+			// insert at the beginning of the list
+			new_node->next = sorted_head;
+			sorted_head = new_node;
+			if (sorted_tail == nullptr)
+			{
+				sorted_tail = new_node;
+			}
+		}
+		else
+		{
+			// insert in the middle or end of the list
+			Process *temp = sorted_head;
+			while (temp->next != nullptr && temp->next->pid <= curr->pid)
+			{
+				temp = temp->next;
+			}
+			new_node->next = temp->next;
+			temp->next = new_node;
+			if (temp == sorted_tail)
+			{
+				sorted_tail = new_node;
+			}
+		}
+
+		curr = curr->next;
+	}
+
+	return sorted_head;
 }
