@@ -43,11 +43,10 @@ struct filenames
 	char *input_file_name;
 };
 
-Process *head = NULL; // PROCESSES linked list head
+Process *head = nullptr; // PROCESSES linked list head
 
 /* ---------------------------- sorting function ---------------------------- */
-Process *sortByPID(Process *head);
-Process *sortLinkedListForSJF(Process *head);
+Process *sortLinkedList(Process *head, std::string method);
 
 /* ------------------------- function defininations ------------------------- */
 filenames getCommandLineArguments(int argc, char *argv[]);
@@ -130,6 +129,7 @@ int main(int argc, char *argv[])
 			}
 			else if (type == 2)
 			{
+				system("clear");
 				calculateSJF(isPreemptive);
 			}
 	} while (option != 4);
@@ -313,31 +313,28 @@ void createProcess(Process **head, int pid, float arrival_time, float burst_time
  */
 void calculateFCFS()
 {
+	Process *current_node = sortLinkedList(head, "fcfs");
 
 	float first_response = 0.0f, total_waiting_time = 0.0f, turnaround_time = 0.0f;
 	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
 	std::cout << std::endl;
 
-	std::cout << " Process Waitng times: " << std::endl;
-	Process *firstNode = head; // Saving the first node reference
-
-	while (head != NULL)
+	std::cout << " Process Waitng times [ms]: " << std::endl;
+	while (current_node != nullptr)
 	{
-		if (head->pid == 1)
-			first_response = head->arrival_time;
+		if (current_node->pid == 1)
+			first_response = current_node->arrival_time;
 
-		turnaround_time = (first_response + head->burst_time) - head->arrival_time;
-		head->waiting_time = turnaround_time - head->burst_time;
-		std::cout << " > P" << head->pid << ": " << head->waiting_time << "ms" << std::endl;
+		turnaround_time = (first_response + current_node->burst_time) - current_node->arrival_time;
+		current_node->waiting_time = turnaround_time - current_node->burst_time;
+		std::cout << " > P" << current_node->pid << ": " << current_node->waiting_time << "ms" << std::endl;
 
-		total_waiting_time += head->waiting_time;
-		first_response = first_response + head->burst_time;
-		head = head->next;
+		total_waiting_time += current_node->waiting_time;
+		first_response = first_response + current_node->burst_time;
+		current_node = current_node->next;
 	}
 
-	head = firstNode; // updating head to point to the first node
 	std::cout << std::endl;
-
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
@@ -352,55 +349,45 @@ void calculateFCFS()
  */
 void calculateSJF(bool isPreemptive)
 {
-	Process *firstNode = head; // keeping a copy of the first node
+	Process *current_node = sortLinkedList(head, "sjf");
 	float total_waiting_time = 0.0f, waiting_time_of_current_process = 0.0f, elapsed_time = 0.0f;
-
-	Process *current_node = sortLinkedListForSJF(head);
 
 	std::cout << " --------------- Scheduling Method: Shortest Job First ( " << (isPreemptive ? "Preemptive" : "Non-Preemptive") << " ) --------------- " << std::endl;
 	std::cout << std::endl;
 
-	std::cout << " Process Waitng times: " << std::endl;
-	std::cout << std::endl;
-
-	// Process *current_node = sorted_head;
-
-	// Iterate through the linked list
+	std::cout << " Process Waitng times [ms]: " << std::endl;
 	while (current_node != nullptr)
 	{
-		// Update the waiting time for the current node
 		current_node->waiting_time = elapsed_time - current_node->arrival_time;
+		std::cout << " > P" << current_node->pid << ": " << current_node->waiting_time << std::endl;
 
-		// Add the waiting time for the current node to the total waiting time
 		total_waiting_time += current_node->waiting_time;
-
-		// Display the waiting time for the current node
-		std::cout << "P" << current_node->pid << " : " << current_node->waiting_time << std::endl;
-
-		// Update the elapsed time with the burst time of the current node
 		elapsed_time += current_node->burst_time;
-
-		// Update the turnaround time for the current node
-		current_node->turnaround_time = elapsed_time - current_node->arrival_time;
-
-		// Update the completion time for the current node
-		current_node->completion_time = elapsed_time;
-
-		// Move to the next node
 		current_node = current_node->next;
 	}
 
-	head = firstNode;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 }
 
+void swapNodes(Process *current_node, Process *compare_node)
+{
+	std::swap(current_node->arrival_time, compare_node->arrival_time);
+	std::swap(current_node->burst_time, compare_node->burst_time);
+	std::swap(current_node->pid, compare_node->pid);
+	std::swap(current_node->priority, compare_node->priority);
+	std::swap(current_node->remaining_time, compare_node->remaining_time);
+	std::swap(current_node->waiting_time, compare_node->waiting_time);
+	std::swap(current_node->turnaround_time, compare_node->turnaround_time);
+	std::swap(current_node->completion_time, compare_node->completion_time);
+}
+
 // Function to sort the linked list according to arrival time and burst time and return a pointer to the head of the sorted copy
-Process *sortLinkedListForSJF(Process *head)
+Process *sortLinkedList(Process *list, std::string method)
 {
 	// Check if the linked list is empty
-	if (head == nullptr)
+	if (list == nullptr)
 	{
 		return nullptr;
 	}
@@ -408,7 +395,8 @@ Process *sortLinkedListForSJF(Process *head)
 	// Create a copy of the linked list
 	Process *copy_head = nullptr;
 	Process *copy_tail = nullptr;
-	Process *current_node = head;
+	Process *current_node = list;
+
 	while (current_node != nullptr)
 	{
 		if (copy_head == nullptr)
@@ -435,32 +423,38 @@ Process *sortLinkedListForSJF(Process *head)
 		compare_node = current_node->next;
 		while (compare_node != nullptr)
 		{
-			// Compare the arrival time of the two nodes
-			if (current_node->arrival_time > compare_node->arrival_time)
+			if (method.compare("sjf") == 0)
 			{
-				// Swap the nodes if the arrival time of the compare node is lower
-				std::swap(current_node->arrival_time, compare_node->arrival_time);
-				std::swap(current_node->burst_time, compare_node->burst_time);
-				std::swap(current_node->pid, compare_node->pid);
-				std::swap(current_node->priority, compare_node->priority);
-				std::swap(current_node->remaining_time, compare_node->remaining_time);
-				std::swap(current_node->waiting_time, compare_node->waiting_time);
-				std::swap(current_node->turnaround_time, compare_node->turnaround_time);
-				std::swap(current_node->completion_time, compare_node->completion_time);
+				// Compare the arrival time of the two nodes
+				if (current_node->arrival_time > compare_node->arrival_time)
+				{
+					swapNodes(current_node, compare_node);
+				}
+				// If the arrival times are the same, compare the burst times
+				else if (current_node->arrival_time && current_node->burst_time > compare_node->burst_time)
+				{
+					swapNodes(current_node, compare_node);
+				}
 			}
-			// If the arrival times are the same, compare the burst times
-			else if (current_node->arrival_time && current_node->burst_time > compare_node->burst_time)
+
+			if (method.compare("pid") == 0)
 			{
-				// Swap the nodes if the burst time of the compare node is lower
-				std::swap(current_node->arrival_time, compare_node->arrival_time);
-				std::swap(current_node->burst_time, compare_node->burst_time);
-				std::swap(current_node->pid, compare_node->pid);
-				std::swap(current_node->priority, compare_node->priority);
-				std::swap(current_node->remaining_time, compare_node->remaining_time);
-				std::swap(current_node->waiting_time, compare_node->waiting_time);
-				std::swap(current_node->turnaround_time, compare_node->turnaround_time);
-				std::swap(current_node->completion_time, compare_node->completion_time);
+				if (current_node->pid > compare_node->pid)
+				{
+					// Swap the nodes if the arrival time of the compare node is lower
+					swapNodes(current_node, compare_node);
+				}
 			}
+
+			if (method.compare("fcfs") == 0)
+			{
+				if (current_node->arrival_time > compare_node->arrival_time)
+				{
+					// Swap the nodes if the arrival time of the compare node is lower
+					swapNodes(current_node, compare_node);
+				}
+			}
+
 			compare_node = compare_node->next;
 		}
 		current_node = current_node->next;
@@ -468,55 +462,4 @@ Process *sortLinkedListForSJF(Process *head)
 
 	// Return a pointer to the head of the sorted copy
 	return copy_head;
-}
-
-Process *sortByPID(Process *head)
-{
-	if (head == nullptr || head->next == nullptr)
-	{
-		return head; // list is already sorted
-	}
-
-	// create a new linked list to hold the sorted nodes
-	Process *sorted_head = nullptr;
-	Process *sorted_tail = nullptr;
-
-	// iterate through the original list and insert each node into the sorted list in the correct position
-	Process *curr = head;
-	while (curr != nullptr)
-	{
-		// create a new node with the same data as the current node
-		Process *new_node = new Process{curr->pid, curr->burst_time, curr->arrival_time, curr->priority};
-
-		// insert the new node into the sorted list in the correct position
-		if (sorted_head == nullptr || curr->pid < sorted_head->pid)
-		{
-			// insert at the beginning of the list
-			new_node->next = sorted_head;
-			sorted_head = new_node;
-			if (sorted_tail == nullptr)
-			{
-				sorted_tail = new_node;
-			}
-		}
-		else
-		{
-			// insert in the middle or end of the list
-			Process *temp = sorted_head;
-			while (temp->next != nullptr && temp->next->pid <= curr->pid)
-			{
-				temp = temp->next;
-			}
-			new_node->next = temp->next;
-			temp->next = new_node;
-			if (temp == sorted_tail)
-			{
-				sorted_tail = new_node;
-			}
-		}
-
-		curr = curr->next;
-	}
-
-	return sorted_head;
 }
