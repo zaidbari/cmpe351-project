@@ -315,7 +315,7 @@ void calculateFCFS()
 {
 	Process *current_node = sortLinkedList(head, "fcfs");
 
-	float first_response = 0.0f, total_waiting_time = 0.0f, turnaround_time = 0.0f;
+	float first_response = 0.0f, total_waiting_time = 0.0f;
 	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
 	std::cout << std::endl;
 
@@ -325,8 +325,7 @@ void calculateFCFS()
 		if (current_node->pid == 1)
 			first_response = current_node->arrival_time;
 
-		turnaround_time = (first_response + current_node->burst_time) - current_node->arrival_time;
-		current_node->waiting_time = turnaround_time - current_node->burst_time;
+		current_node->waiting_time = ((first_response + current_node->burst_time) - current_node->arrival_time) - current_node->burst_time;
 		std::cout << " > P" << current_node->pid << ": " << current_node->waiting_time << "ms" << std::endl;
 
 		total_waiting_time += current_node->waiting_time;
