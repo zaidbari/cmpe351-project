@@ -6,23 +6,20 @@
  * @description    :	CMPE351 Operating systems project for CPU scheduling
  *========================================================================**/
 
-/* -------------------------------- Libraries ------------------------------- */
+/* ------------------------------ Header files ------------------------------ */
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
 #include <cstring>
-#include <vector>		 //Required for using vectors
-#include <algorithm> //Required for sort() library function
+#include <algorithm>
 
 /* -------------------------- Variable definitaions ------------------------- */
 #define DELIMETER ':'
 #define INT_MAX 2147483647
-
-/* ---------------------------- Global Variables ---------------------------- */
 int TOTAL_PROCESS = 0;
-/* ------------------------- Structure definiations ------------------------- */
 
+/* ------------------------- Structure definiations ------------------------- */
 struct Process
 {
 	int pid;
@@ -33,6 +30,8 @@ struct Process
 	float waiting_time;
 	float turnaround_time;
 	float completion_time;
+	float elapsed_time;
+	bool completed;
 	Process *next;
 	Process *prev;
 };
@@ -45,9 +44,6 @@ struct filenames
 
 Process *head = nullptr; // PROCESSES linked list head
 
-/* ---------------------------- sorting function ---------------------------- */
-Process *sortLinkedList(Process *head, std::string method);
-
 /* ------------------------- function defininations ------------------------- */
 filenames getCommandLineArguments(int argc, char *argv[]);
 void readInputFile(std::string input_file_name);
@@ -58,7 +54,9 @@ int displaySchedulingMenu();
 void createProcess(Process **head, int pid, float arrival_time, float burst_time, int priority);
 
 void calculateFCFS();
-void calculateSJF(bool isPreemptive);
+void calculateSJFNonPremptive();
+void calculateSJFPremptive();
+void calculatePriority();
 
 /**
  * @brief Main entry point
@@ -66,10 +64,11 @@ void calculateSJF(bool isPreemptive);
  * @param argc Argument count (contains the number of arguments)
  * @param argv  Argument vector (contains argument's values)
  *
- * @return int EXIT_SUCCESS = 1
+ * @return int EXIT_SUCCESS = 0
  */
 int main(int argc, char *argv[])
 {
+	system("clear");
 
 	/* -------------- get command line arguments and store results -------------- */
 	filenames files = getCommandLineArguments(argc, argv);
@@ -99,39 +98,52 @@ int main(int argc, char *argv[])
 	do
 	{
 		option = displayMenu(isPreemptive, type, time_quantum);
-		if (option == 1)
+
+		switch (option)
 		{
-			/* ------------------------- display scheduling menu ------------------------ */
+		case 1: // Selection of scheduling method
 			system("clear");
 			do
 			{
 				type = displaySchedulingMenu();
-				/* -------------------- if round-robin, get quantam time -------------------- */
-				if (type == 4)
+				if (type == 4) // if round-robin, get quantam time
 				{
 					std::cout << " Input quantum time value: ";
 					std::cin >> time_quantum;
 				}
 				system("clear");
 			} while (type != 1 && type != 2 && type != 3 && type != 4);
-		}
+			break;
 
-		if (option == 2)
-		{
+		case 2: // Boolean for setting method to preemptive or non-preemptive
 			isPreemptive = !isPreemptive;
 			system("clear");
-		}
-		if (option == 3)
-			if (type == 1)
+			break;
+
+		case 3: // case for displaying results
+			switch (type)
 			{
+			case 1: // case fo displaying first come first serve algorithm
 				system("clear");
 				calculateFCFS();
-			}
-			else if (type == 2)
-			{
+				break;
+			case 2: // case for displaying shortest job first algorithm
 				system("clear");
-				calculateSJF(isPreemptive);
+				if (!isPreemptive)
+					calculateSJFNonPremptive();
+				else
+					calculateSJFPremptive();
+				break;
+			case 3: // case for displaying priority scheduling algorithm
+				system("clear");
+				calculatePriority();
+				break;
 			}
+			break;
+
+		default:
+			break;
+		}
 	} while (option != 4);
 
 	exit(EXIT_SUCCESS);
@@ -243,10 +255,10 @@ int displayMenu(bool premtive = false, int type = 0, float qt = 0)
 	std::cout << " [1]: Scheduling Method (" << scheduling_method << ") " << (qt > 0 ? "| QT = " + std::to_string(qt) : " ") << std::endl;
 	std::cout << " [2]: Preemptive Mode (" << (premtive ? "YES" : "NO") << ") " << std::endl;
 	std::cout << " [3]: Show results" << std::endl;
-	std::cout << " [4]: End Program" << std::endl;
+	std::cout << " [4]: End Program (Run all algos, display and write to file)" << std::endl;
 
 	std::cout << std::endl;
-	std::cout << "-----------------------------------------------------------------------" << std::endl;
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 	std::cout << " Option> ";
 	std::cin >> option;
 
@@ -270,7 +282,7 @@ int displaySchedulingMenu()
 	std::cout << " [4]: Round-Ribbon " << std::endl;
 	std::cout << std::endl;
 
-	std::cout << "-----------------------------------------------------------------------" << std::endl;
+	std::cout << " --------------------------------------------------------------------------- " << std::endl;
 
 	std::cout << " Option> ";
 	std::cin >> type;
@@ -294,7 +306,7 @@ int displaySchedulingMenu()
  */
 void createProcess(Process **head, int pid, float arrival_time, float burst_time, int priority)
 {
-	Process *tail = *head, *current_node = new Process{pid, burst_time, arrival_time, priority};
+	Process *tail = *head, *current_node = new Process{pid, burst_time, arrival_time, priority, 0, 0, 0, 0, 0, false};
 
 	if (*head == NULL)
 		*head = current_node;
@@ -307,69 +319,10 @@ void createProcess(Process **head, int pid, float arrival_time, float burst_time
 }
 
 /**
- * @brief display results for first come first serve algorithm
- *
- * @return void
+ * @brief swap nodes
+ * @param current_node
+ * @param compare_node
  */
-void calculateFCFS()
-{
-	Process *current_node = sortLinkedList(head, "fcfs");
-
-	float first_response = 0.0f, total_waiting_time = 0.0f;
-	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
-	std::cout << std::endl;
-
-	std::cout << " Process Waitng times [ms]: " << std::endl;
-	while (current_node != nullptr)
-	{
-		if (current_node->pid == 1)
-			first_response = current_node->arrival_time;
-
-		current_node->waiting_time = ((first_response + current_node->burst_time) - current_node->arrival_time) - current_node->burst_time;
-		std::cout << " > P" << current_node->pid << ": " << current_node->waiting_time << "ms" << std::endl;
-
-		total_waiting_time += current_node->waiting_time;
-		first_response = first_response + current_node->burst_time;
-		current_node = current_node->next;
-	}
-
-	std::cout << std::endl;
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-}
-
-/**
- * @brief display results for first come first serve algorithm
- *
- * @param isPreemptive Check for premtive mode
- *
- * @return void
- */
-void calculateSJF(bool isPreemptive)
-{
-	Process *current_node = sortLinkedList(head, "sjf");
-	float total_waiting_time = 0.0f, waiting_time_of_current_process = 0.0f, elapsed_time = 0.0f;
-
-	std::cout << " --------------- Scheduling Method: Shortest Job First ( " << (isPreemptive ? "Preemptive" : "Non-Preemptive") << " ) --------------- " << std::endl;
-	std::cout << std::endl;
-
-	std::cout << " Process Waitng times [ms]: " << std::endl;
-	while (current_node != nullptr)
-	{
-		current_node->waiting_time = elapsed_time - current_node->arrival_time;
-		std::cout << " > P" << current_node->pid << ": " << current_node->waiting_time << std::endl;
-
-		total_waiting_time += current_node->waiting_time;
-		elapsed_time += current_node->burst_time;
-		current_node = current_node->next;
-	}
-
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-}
-
 void swapNodes(Process *current_node, Process *compare_node)
 {
 	std::swap(current_node->arrival_time, compare_node->arrival_time);
@@ -382,7 +335,12 @@ void swapNodes(Process *current_node, Process *compare_node)
 	std::swap(current_node->completion_time, compare_node->completion_time);
 }
 
-// Function to sort the linked list according to arrival time and burst time and return a pointer to the head of the sorted copy
+/**
+ * @brief
+ * @param list node head
+ * @param method ["pid", "sjf", "sjfp", "fcfs", "priority"]
+ * @return Process
+ */
 Process *sortLinkedList(Process *list, std::string method)
 {
 	// Check if the linked list is empty
@@ -424,36 +382,37 @@ Process *sortLinkedList(Process *list, std::string method)
 		{
 			if (method.compare("sjf") == 0)
 			{
-				// Compare the arrival time of the two nodes
 				if (current_node->arrival_time > compare_node->arrival_time)
-				{
 					swapNodes(current_node, compare_node);
-				}
-				// If the arrival times are the same, compare the burst times
 				else if (current_node->arrival_time && current_node->burst_time > compare_node->burst_time)
-				{
 					swapNodes(current_node, compare_node);
-				}
 			}
 
 			if (method.compare("pid") == 0)
-			{
 				if (current_node->pid > compare_node->pid)
-				{
-					// Swap the nodes if the arrival time of the compare node is lower
 					swapNodes(current_node, compare_node);
-				}
-			}
+
+			if (method.compare("sjfp") == 0)
+				if (current_node->remaining_time < compare_node->remaining_time)
+					swapNodes(current_node, compare_node);
 
 			if (method.compare("fcfs") == 0)
-			{
 				if (current_node->arrival_time > compare_node->arrival_time)
-				{
-					// Swap the nodes if the arrival time of the compare node is lower
 					swapNodes(current_node, compare_node);
+
+			if (method.compare("priority") == 0)
+			{
+				if (current_node->arrival_time != compare_node->arrival_time)
+				{
+					if (current_node->arrival_time < compare_node->arrival_time)
+						swapNodes(current_node, compare_node);
+				}
+				else
+				{
+					if (current_node->priority < compare_node->priority)
+						swapNodes(current_node, compare_node);
 				}
 			}
-
 			compare_node = compare_node->next;
 		}
 		current_node = current_node->next;
@@ -461,4 +420,105 @@ Process *sortLinkedList(Process *list, std::string method)
 
 	// Return a pointer to the head of the sorted copy
 	return copy_head;
+}
+
+/**
+ * @brief display results for first come first serve algorithm
+ *
+ * @return void
+ */
+void calculateFCFS()
+{
+	Process *current_node = sortLinkedList(head, "fcfs");
+	float first_response = 0.0f, total_waiting_time = 0.0f;
+
+	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
+	std::cout << std::endl;
+
+	std::cout << " Process Waitng times [ms]: " << std::endl;
+	while (current_node != nullptr)
+	{
+		if (current_node->pid == 1)
+			first_response = current_node->arrival_time;
+
+		current_node->waiting_time = ((first_response + current_node->burst_time) - current_node->arrival_time) - current_node->burst_time;
+		std::cout << " P" << current_node->pid << ": " << current_node->waiting_time << std::endl;
+
+		total_waiting_time += current_node->waiting_time;
+		first_response = first_response + current_node->burst_time;
+		current_node = current_node->next;
+	}
+
+	std::cout << std::endl;
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+}
+
+/**
+ * @brief display results for shortest job first algorithm
+ *
+ * @return void
+ */
+void calculateSJFNonPremptive()
+{
+
+	Process *current_node = sortLinkedList(head, "sjf");
+	float total_waiting_time = 0.0f, elapsed_time = 0.0f;
+
+	std::cout << " --------------- Scheduling Method: Shortest Job First ( NON-PREEMPTIVE ) --------------- " << std::endl;
+	std::cout << std::endl;
+
+	std::cout << " Process Waitng times [ms]: " << std::endl;
+	while (current_node != nullptr)
+	{
+		current_node->waiting_time = elapsed_time - current_node->arrival_time;
+		std::cout << " P" << current_node->pid << ": " << current_node->waiting_time << std::endl;
+
+		total_waiting_time += current_node->waiting_time;
+		elapsed_time += current_node->burst_time;
+		current_node = current_node->next;
+	}
+
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+}
+
+/**
+ * @brief display results for shortest job first algorithm (Preemptive)
+ *
+ * @return void
+ */
+void calculateSJFPremptive()
+{
+	Process *current_node = sortLinkedList(head, "sjfp");
+	float total_waiting_time = 0.0f, elapsed_time = 0.0f;
+
+	std::cout << " --------------- Scheduling Method: Shortest Job First ( PREEMPTIVE ) --------------- " << std::endl;
+	std::cout << std::endl;
+	std::cout << " Process Waitng times [ms]: " << std::endl;
+
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+}
+
+/**
+ * @brief display results for priority scheduling algorithm (Preemptive)
+ *
+ * @return void
+ */
+void calculatePriority()
+{
+	Process *current_node = sortLinkedList(head, "priority");
+	float total_waiting_time = 0.0f, elapsed_time = 0.0f;
+
+	std::cout << " --------------- Scheduling Method: Priority ( PREEMPTIVE ) --------------- " << std::endl;
+	std::cout << std::endl;
+	std::cout << " Process Waitng times [ms]: " << std::endl;
+
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 }
