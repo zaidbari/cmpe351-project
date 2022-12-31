@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <cstring>
 #include <algorithm>
+#include <queue>
 
 /* -------------------------- Variable definitaions ------------------------- */
 #define DELIMETER ':'
@@ -43,13 +44,15 @@ struct filenames
 
 Process *head = nullptr; // PROCESSES linked list head
 Process *getNextShortestProcess(Process *head, int currentTime, std::vector<int> completedProcesses);
+Process *getNextHighestPriorityProcess(Process *head, int currentTime, std::vector<int> completedProcesses);
+
 Process *sortLinkedList(Process *list, std::string method);
 
 /* ------------------------- function defininations ------------------------- */
 filenames getCommandLineArguments(int argc, char *argv[]);
 void readInputFile(std::string input_file_name);
 
-int displayMenu(bool premtive, int type, float qt);
+int displayMenu(bool premtive, int type, float TQ);
 int displaySchedulingMenu();
 
 void createProcess(Process **head, int pid, float arrival_time, float burst_time, int priority);
@@ -57,7 +60,8 @@ void createProcess(Process **head, int pid, float arrival_time, float burst_time
 void calculateFCFS();
 void calculateSJFNonPremptive();
 void calculateSJFPremptive();
-void calculatePriority();
+void calculatePriorityNonPreemptive();
+void calculateRoundRobin(float TQ);
 
 /**
  * @brief Main entry point
@@ -137,7 +141,12 @@ int main(int argc, char *argv[])
 				break;
 			case 3: // case for displaying priority scheduling algorithm
 				system("clear");
-				calculatePriority();
+				if (!isPreemptive)
+					calculatePriorityNonPreemptive();
+				break;
+			case 4: // case for displaying round robin scheduling algorithm
+				system("clear");
+				calculateRoundRobin(time_quantum);
 				break;
 			}
 			break;
@@ -187,7 +196,7 @@ void readInputFile(std::string input_file_name)
 {
 	/* ------------------ input/output file stream declarations ----------------- */
 	std::ifstream inFile(input_file_name, std::ios::in);
-	int number_of_process = 0; // Current Process number while inside the loop | Total number - 1 of processes after reading the file
+	int number_of_process = 0; // Current Process number while inside the loop
 
 	if (inFile.is_open())
 	{
@@ -224,7 +233,7 @@ void readInputFile(std::string input_file_name)
  *
  *	@return void
  */
-int displayMenu(bool premtive = false, int type = 0, float qt = 0)
+int displayMenu(bool premtive = false, int type = 0, float TQ = 0)
 {
 	int option = 0;
 	std::string scheduling_method = "None";
@@ -253,7 +262,7 @@ int displayMenu(bool premtive = false, int type = 0, float qt = 0)
 	std::cout << " --------------------------------- WELCOME -------------------------------- " << std::endl;
 	std::cout << std::endl;
 
-	std::cout << " [1]: Scheduling Method (" << scheduling_method << ") " << (qt > 0 ? "| QT = " + std::to_string(qt) : " ") << std::endl;
+	std::cout << " [1]: Scheduling Method (" << scheduling_method << ") " << (TQ > 0 ? "| QT = " + std::to_string(TQ) : " ") << std::endl;
 	std::cout << " [2]: Preemptive Mode (" << (premtive ? "YES" : "NO") << ") " << std::endl;
 	std::cout << " [3]: Show results" << std::endl;
 	std::cout << " [4]: End Program (Run all methods then display and write to file)" << std::endl;
@@ -307,6 +316,8 @@ int displaySchedulingMenu()
  */
 void createProcess(Process **head, int pid, float arrival_time, float burst_time, int priority)
 {
+
+	// "new" is same a "malloc" function that will allocate memory for the process structure and return it as a pointer
 	Process *tail = *head, *current_node = new Process{pid, burst_time, arrival_time, priority};
 
 	if (*head == NULL)
@@ -326,7 +337,7 @@ void createProcess(Process **head, int pid, float arrival_time, float burst_time
  */
 void calculateFCFS()
 {
-	Process *current_node = sortLinkedList(head, "fcfs");
+	Process *current_node = sortLinkedList(head, "arrival_time");
 	float first_response = 0.0f, total_waiting_time = 0.0f;
 
 	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
@@ -381,7 +392,8 @@ void calculateSJFNonPremptive()
 	float total_waiting_time = 0.0f, elapsed_time = 0.0f;
 
 	// Create a copy of the original process list
-	Process *processList = head;
+	Process *sorted = sortLinkedList(head, "arrival_time");
+	Process *processList = sorted;
 
 	// Initialize variables
 	int currentTime = 0;
@@ -414,7 +426,7 @@ void calculateSJFNonPremptive()
 	std::cout << std::endl;
 	std::cout << " Process Waitng times [ms]: " << std::endl;
 	// Reset the processList pointer to the first node
-	processList = head;
+	processList = sorted;
 
 	Process *temp = processList;
 	while (temp != NULL)
@@ -429,22 +441,181 @@ void calculateSJFNonPremptive()
 }
 
 /**
- * @brief display results for priority scheduling algorithm (Preemptive)
+ * @brief display results for priority scheduling algorithm (Non-Preemptive)
  *
  * @return void
  */
-void calculatePriority()
+void calculatePriorityNonPreemptive()
 {
-	Process *current_node = sortLinkedList(head, "priority");
-	float total_waiting_time = 0.0f, elapsed_time = 0.0f;
+	float total_waiting_time = 0.0f;
+	// Create a copy of the original process list
+	Process *sorted = sortLinkedList(head, "arrival_time");
+	Process *processList = sorted;
 
-	std::cout << " --------------- Scheduling Method: Priority ( PREEMPTIVE ) --------------- " << std::endl;
+	int currentTime = 0;
+	Process *currentProcess = NULL;
+
+	// Keep track of completed processes
+	std::vector<int> completedProcesses;
+
+	// Iterate until all processes have completed
+	while (completedProcesses.size() < TOTAL_PROCESS)
+	{
+		// Get the next process with the highest priority
+		currentProcess = getNextHighestPriorityProcess(processList, currentTime, completedProcesses);
+
+		// Update the waiting time for the current process
+		currentProcess->waiting_time = currentTime - currentProcess->arrival_time;
+		total_waiting_time += currentProcess->waiting_time;
+
+		// Update the elapsed time for the current process
+		currentProcess->elapsed_time = currentProcess->waiting_time + currentProcess->burst_time;
+
+		// Update the current time
+		currentTime += currentProcess->burst_time;
+
+		// Mark the current process as completed
+		completedProcesses.push_back(currentProcess->pid);
+	}
+
+	// Reset the processList pointer to the first node
+	processList = sorted;
+
+	std::cout << " --------------- Scheduling Method: Priority ( Non-PREEMPTIVE ) --------------- " << std::endl;
 	std::cout << std::endl;
 	std::cout << " Process Waitng times [ms]: " << std::endl;
+	// Reset the processList pointer to the first node
+	processList = sorted;
+
+	Process *temp = processList;
+	while (temp != NULL)
+	{
+		std::cout << " P" << temp->pid << ": " << temp->waiting_time << std::endl;
+		temp = temp->next;
+	}
 
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+}
+
+/**
+ * @brief display results for Round Robin scheduling algorithm
+ *
+ * @return void
+ */
+void calculateRoundRobin(float TQ)
+{
+	float total_waiting_time = 0.0f;
+	// Create a queue of processes
+	std::queue<Process *> processQueue;
+
+	// Initialize variables
+	int currentTime = 0;
+	Process *currentProcess = NULL;
+
+	// Keep track of completed processes
+	std::vector<int> completedProcesses;
+
+	Process *sorted = sortLinkedList(head, "arrival_time");
+
+	// Add all processes to the queue
+	Process *temp = sorted;
+	while (temp != NULL)
+	{
+		processQueue.push(temp);
+		temp = temp->next;
+	}
+
+	// Iterate until all processes have completed
+	while (completedProcesses.size() < TOTAL_PROCESS)
+	{
+		// Get the next process in the queue
+		currentProcess = processQueue.front();
+		processQueue.pop();
+
+		// If the current process has completed, move on to the next one
+		if (std::find(completedProcesses.begin(), completedProcesses.end(), currentProcess->pid) != completedProcesses.end())
+			continue;
+
+		// Update the waiting time for the current process
+		currentProcess->waiting_time += currentTime - currentProcess->arrival_time;
+
+		// Add the waiting time to the total waiting time
+		total_waiting_time += currentTime - currentProcess->arrival_time;
+
+		// Update the elapsed time for the current process
+		currentProcess->elapsed_time = currentProcess->waiting_time + currentTime - currentProcess->arrival_time;
+
+		// Check if the current process has completed
+		if (currentProcess->burst_time - currentProcess->elapsed_time <= 0)
+		{
+			// Mark the current process as completed
+			completedProcesses.push_back(currentProcess->pid);
+		}
+		else
+		{
+			// Add the current process to the end of the queue
+			processQueue.push(currentProcess);
+
+			// Update the arrival time for the current process
+			currentProcess->arrival_time = currentTime + TQ;
+		}
+
+		// Update the current time
+		currentTime += TQ;
+	}
+
+	// Display the waiting times for each process
+	std::cout << " --------------- Scheduling Method: Round Robin ( TQ = " << TQ << " ) --------------- " << std::endl;
+	std::cout << std::endl;
+	std::cout << " Process Waitng times [ms]: " << std::endl;
+	temp = sorted;
+	while (temp != NULL)
+	{
+		std::cout << " P" << temp->pid << ": " << temp->waiting_time << std::endl;
+		temp = temp->next;
+	}
+
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
+	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+}
+
+/**
+ * @brief get the higest priority node from process list
+ * @param node
+ * @param currentTime
+ * @param completedProcesses
+ * @return
+ */
+Process *getNextHighestPriorityProcess(Process *head, int currentTime, std::vector<int> completedProcesses)
+{
+	Process *highestPriorityProcess = NULL;
+	Process *temp = head;
+
+	while (temp != NULL)
+	{
+		// Skip completed processes
+		if (std::find(completedProcesses.begin(), completedProcesses.end(), temp->pid) != completedProcesses.end())
+		{
+			temp = temp->next;
+			continue;
+		}
+
+		// If the current process has the highest priority and has arrived at the current time, set it as the highest priority process
+		if (highestPriorityProcess == NULL ||
+				(temp->priority > highestPriorityProcess->priority) ||
+				(temp->priority == highestPriorityProcess->priority && temp->arrival_time < highestPriorityProcess->arrival_time) ||
+				(temp->priority == highestPriorityProcess->priority && temp->arrival_time == highestPriorityProcess->arrival_time && temp->burst_time < highestPriorityProcess->burst_time))
+		{
+			highestPriorityProcess = temp;
+		}
+
+		temp = temp->next;
+	}
+
+	return highestPriorityProcess;
 }
 
 /**
@@ -500,16 +671,14 @@ void swapNodes(Process *current_node, Process *compare_node)
 /**
  * @brief
  * @param list node head
- * @param method ["pid", "sjf", "sjfp", "fcfs", "priority"]
+ * @param method ["arrival_time"]
  * @return Process
  */
 Process *sortLinkedList(Process *list, std::string method)
 {
 	// Check if the linked list is empty
 	if (list == nullptr)
-	{
 		return nullptr;
-	}
 
 	// Create a copy of the linked list
 	Process *copy_head = nullptr;
@@ -542,31 +711,11 @@ Process *sortLinkedList(Process *list, std::string method)
 		compare_node = current_node->next;
 		while (compare_node != nullptr)
 		{
-			if (method.compare("pid") == 0)
-				if (current_node->pid > compare_node->pid)
-					swapNodes(current_node, compare_node);
-
-			if (method.compare("fcfs") == 0)
+			// TODO: Add support for different priorities
+			if (method.compare("arrival_time") == 0)
 				if (current_node->arrival_time > compare_node->arrival_time)
 					swapNodes(current_node, compare_node);
 
-			if (method.compare("sjf") == 0)
-				if (current_node->arrival_time > compare_node->arrival_time || (current_node->arrival_time == compare_node->arrival_time && current_node->burst_time > compare_node->burst_time))
-					swapNodes(current_node, compare_node);
-
-			if (method.compare("priority") == 0)
-			{
-				if (current_node->arrival_time != compare_node->arrival_time)
-				{
-					if (current_node->arrival_time < compare_node->arrival_time)
-						swapNodes(current_node, compare_node);
-				}
-				else
-				{
-					if (current_node->priority < compare_node->priority)
-						swapNodes(current_node, compare_node);
-				}
-			}
 			compare_node = compare_node->next;
 		}
 		current_node = current_node->next;
