@@ -25,11 +25,11 @@ you should commit your code on github.
 
 ### Compilation command
 ``` cmd 
-g++ -o cpe351.exe main.cpp 
+g++ -o main.exe main.cpp 
 ```
 
 
 ### Run command
 ``` cmd
-./cpe351 –f input.txt –o output.txt
+./main.exe –f input.txt –o output.txt
 ```
