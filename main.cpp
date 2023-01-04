@@ -10,7 +10,6 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <filesystem>
 #include <cstring>
 #include <algorithm>
 #include <queue>
@@ -18,7 +17,8 @@
 /* -------------------------- Variable definitaions ------------------------- */
 #define DELIMETER ':'
 int TOTAL_PROCESS = 0;
-
+bool shoudl_write_to_file = false;
+char *output_file_name = NULL;
 /* ------------------------- Structure definiations ------------------------- */
 struct Process
 {
@@ -77,6 +77,7 @@ int main(int argc, char *argv[])
 
 	/* -------------- get command line arguments and store results -------------- */
 	filenames files = getCommandLineArguments(argc, argv);
+	output_file_name = files.output_file_name;
 
 	/* ------------------ read input file and create processes ------------------ */
 	readInputFile(files.input_file_name);
@@ -136,7 +137,19 @@ int main(int argc, char *argv[])
 				break;
 			}
 			break;
-
+		case 4:
+			if (time_quantum == 0)
+			{
+				std::cout << " Input quantum time value: ";
+				std::cin >> time_quantum;
+			}
+			shoudl_write_to_file = true;
+			system("clear");
+			calculateFCFS();
+			calculateSJFNonPremptive();
+			calculatePriorityNonPreemptive();
+			calculateRoundRobin(time_quantum);
+			break;
 		default:
 			break;
 		}
@@ -198,7 +211,32 @@ filenames getCommandLineArguments(int argc, char *argv[])
 	}
 	fclose(input_file);
 
+	std::ifstream output_file(output_file_name);
+	if (output_file.good())
+	{
+		// Output file exists, clear its content
+		output_file.close();
+		std::ofstream clear_output_file(output_file_name, std::ofstream::trunc);
+		clear_output_file.close();
+	}
+	else
+	{
+		// Output file does not exist, create it
+		std::ofstream create_output_file(output_file_name);
+		create_output_file.close();
+	}
+	output_file.close();
+
 	return filenames{output_file_name, input_file_name};
+}
+
+void writeToFile(std::string content)
+{
+
+	std::ofstream output_file;
+	output_file.open(output_file_name, std::ios::out | std::ios::app);
+	output_file << content << std::endl;
+	output_file.close();
 }
 
 /**
@@ -245,7 +283,7 @@ void readInputFile(std::string input_file_name)
  *
  *	@param premtive boolean to check if preemptive type is selected
  *	@param type type of scheduling method selected enum[1,2,3,4]
- *	@param qt quantam time value if type = 4 | Round-Robin Algorithm
+ *	@param TQ quantam time value if type = 4 | Round-Robin Algorithm
  *
  *	@return void
  */
@@ -356,8 +394,12 @@ void calculateFCFS()
 	Process *current_node = sortLinkedList(head, "arrival_time");
 	float first_response = 0.0f, total_waiting_time = 0.0f;
 
+	if (shoudl_write_to_file)
+		writeToFile("--------------- Scheduling Method: First Come First Served --------------- ");
 	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
 	std::cout << std::endl;
+	if (shoudl_write_to_file)
+		writeToFile("Process waiting times [ms]: ");
 
 	std::cout << " Process Waitng times [ms]: " << std::endl;
 	while (current_node != nullptr)
@@ -366,6 +408,9 @@ void calculateFCFS()
 			first_response = current_node->arrival_time;
 
 		current_node->waiting_time = ((first_response + current_node->burst_time) - current_node->arrival_time) - current_node->burst_time;
+
+		if (shoudl_write_to_file)
+			writeToFile(" P" + std::to_string(current_node->pid) + ": " + std::to_string(current_node->waiting_time));
 		std::cout << " P" << current_node->pid << ": " << current_node->waiting_time << std::endl;
 
 		total_waiting_time += current_node->waiting_time;
@@ -373,6 +418,12 @@ void calculateFCFS()
 		current_node = current_node->next;
 	}
 
+	if (shoudl_write_to_file)
+	{
+		writeToFile("--------------------------------------------------------------------------");
+		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+		writeToFile("--------------------------------------------------------------------------");
+	}
 	std::cout << std::endl;
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
@@ -389,9 +440,19 @@ void calculateSJFPremptive()
 	Process *processList = sortLinkedList(head, "sjf");
 	float total_waiting_time = 0.0f;
 
+	if (shoudl_write_to_file)
+		writeToFile("--------------- Scheduling Method: Shortest Job First ( Non-Preemptive ) --------------- ");
+
 	std::cout << " --------------- Scheduling Method: Shortest Job First ( Non-PREEMPTIVE ) --------------- " << std::endl;
 	std::cout << std::endl;
 	std::cout << " Process Waitng times [ms]: " << std::endl;
+
+	if (shoudl_write_to_file)
+	{
+		writeToFile("--------------------------------------------------------------------------");
+		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+		writeToFile("--------------------------------------------------------------------------");
+	}
 
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
 	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
@@ -438,8 +499,15 @@ void calculateSJFNonPremptive()
 		completedProcesses.push_back(currentProcess->pid);
 	}
 
+	if (shoudl_write_to_file)
+		writeToFile("--------------- Scheduling Method: Shortest Job First ( Preemptive ) --------------- ");
+
 	std::cout << " --------------- Scheduling Method: Shortest Job First ( PREEMPTIVE ) --------------- " << std::endl;
 	std::cout << std::endl;
+
+	if (shoudl_write_to_file)
+		writeToFile(" Process waiting times [ms]: ");
+
 	std::cout << " Process Waitng times [ms]: " << std::endl;
 	// Reset the processList pointer to the first node
 	processList = sorted;
@@ -447,8 +515,18 @@ void calculateSJFNonPremptive()
 	Process *temp = processList;
 	while (temp != NULL)
 	{
+		if (shoudl_write_to_file)
+			writeToFile(" P" + std::to_string(temp->pid) + ": " + std::to_string(temp->waiting_time));
+
 		std::cout << " P" << temp->pid << ": " << temp->waiting_time << std::endl;
 		temp = temp->next;
+	}
+
+	if (shoudl_write_to_file)
+	{
+		writeToFile("--------------------------------------------------------------------------");
+		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+		writeToFile("--------------------------------------------------------------------------");
 	}
 
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
@@ -497,8 +575,15 @@ void calculatePriorityNonPreemptive()
 	// Reset the processList pointer to the first node
 	processList = sorted;
 
+	if (shoudl_write_to_file)
+		writeToFile("--------------- Scheduling Method: Priority ( Non-Preemptive) --------------- ");
+
 	std::cout << " --------------- Scheduling Method: Priority ( Non-PREEMPTIVE ) --------------- " << std::endl;
 	std::cout << std::endl;
+
+	if (shoudl_write_to_file)
+		writeToFile("Process waiting times [ms]: ");
+
 	std::cout << " Process Waitng times [ms]: " << std::endl;
 	// Reset the processList pointer to the first node
 	processList = sorted;
@@ -506,8 +591,18 @@ void calculatePriorityNonPreemptive()
 	Process *temp = processList;
 	while (temp != NULL)
 	{
+		if (shoudl_write_to_file)
+			writeToFile(" P" + std::to_string(temp->pid) + ": " + std::to_string(temp->waiting_time));
+
 		std::cout << " P" << temp->pid << ": " << temp->waiting_time << std::endl;
 		temp = temp->next;
+	}
+
+	if (shoudl_write_to_file)
+	{
+		writeToFile("--------------------------------------------------------------------------");
+		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+		writeToFile("--------------------------------------------------------------------------");
 	}
 
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
@@ -582,6 +677,9 @@ void calculateRoundRobin(float TQ)
 		currentTime += TQ;
 	}
 
+	if (shoudl_write_to_file)
+		writeToFile("--------------- Scheduling Method: Round Robin ( TQ = " + std::to_string(TQ) + " ) --------------- ");
+
 	// Display the waiting times for each process
 	std::cout << " --------------- Scheduling Method: Round Robin ( TQ = " << TQ << " ) --------------- " << std::endl;
 	std::cout << std::endl;
@@ -589,8 +687,18 @@ void calculateRoundRobin(float TQ)
 	temp = sorted;
 	while (temp != NULL)
 	{
+		if (shoudl_write_to_file)
+			writeToFile(" P" + std::to_string(temp->pid) + ": " + std::to_string(temp->waiting_time));
+
 		std::cout << " P" << temp->pid << ": " << temp->waiting_time << std::endl;
 		temp = temp->next;
+	}
+
+	if (shoudl_write_to_file)
+	{
+		writeToFile("--------------------------------------------------------------------------");
+		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+		writeToFile("--------------------------------------------------------------------------");
 	}
 
 	std::cout << " -------------------------------------------------------------------------- " << std::endl;
