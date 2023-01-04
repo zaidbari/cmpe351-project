@@ -19,6 +19,7 @@
 int TOTAL_PROCESS = 0;
 bool shoudl_write_to_file = false;
 char *output_file_name = NULL;
+
 /* ------------------------- Structure definiations ------------------------- */
 struct Process
 {
@@ -147,6 +148,8 @@ int main(int argc, char *argv[])
 			system("clear");
 			calculateFCFS();
 			calculateSJFNonPremptive();
+			calculateSJFPremptive();
+
 			calculatePriorityNonPreemptive();
 			calculateRoundRobin(time_quantum);
 			break;
@@ -233,10 +236,15 @@ filenames getCommandLineArguments(int argc, char *argv[])
 void writeToFile(std::string content)
 {
 
-	std::ofstream output_file;
-	output_file.open(output_file_name, std::ios::out | std::ios::app);
-	output_file << content << std::endl;
-	output_file.close();
+	std::cout << content << std::endl;
+
+	if (shoudl_write_to_file)
+	{
+		std::ofstream output_file;
+		output_file.open(output_file_name, std::ios::out | std::ios::app);
+		output_file << content << std::endl;
+		output_file.close();
+	}
 }
 
 /**
@@ -372,7 +380,7 @@ void createProcess(Process **head, int pid, float arrival_time, float burst_time
 {
 
 	// "new" is same a "malloc" function that will allocate memory for the process structure and return it as a pointer
-	Process *tail = *head, *current_node = new Process{pid, burst_time, arrival_time, priority};
+	Process *tail = *head, *current_node = new Process{pid, burst_time, arrival_time, priority, burst_time};
 
 	if (*head == NULL)
 		*head = current_node;
@@ -394,14 +402,9 @@ void calculateFCFS()
 	Process *current_node = sortLinkedList(head, "arrival_time");
 	float first_response = 0.0f, total_waiting_time = 0.0f;
 
-	if (shoudl_write_to_file)
-		writeToFile("--------------- Scheduling Method: First Come First Served --------------- ");
-	std::cout << " --------------- Scheduling Method: First Come First Served --------------- " << std::endl;
-	std::cout << std::endl;
-	if (shoudl_write_to_file)
-		writeToFile("Process waiting times [ms]: ");
+	writeToFile("--------------- Scheduling Method: First Come First Served --------------- ");
+	writeToFile(" Process waiting times [ms]:");
 
-	std::cout << " Process Waitng times [ms]: " << std::endl;
 	while (current_node != nullptr)
 	{
 		if (current_node->pid == 1)
@@ -409,26 +412,26 @@ void calculateFCFS()
 
 		current_node->waiting_time = ((first_response + current_node->burst_time) - current_node->arrival_time) - current_node->burst_time;
 
-		if (shoudl_write_to_file)
-			writeToFile(" P" + std::to_string(current_node->pid) + ": " + std::to_string(current_node->waiting_time));
-		std::cout << " P" << current_node->pid << ": " << current_node->waiting_time << std::endl;
+		writeToFile(" P" + std::to_string(current_node->pid) + ": " + std::to_string(current_node->waiting_time));
 
 		total_waiting_time += current_node->waiting_time;
 		first_response = first_response + current_node->burst_time;
 		current_node = current_node->next;
 	}
 
-	if (shoudl_write_to_file)
-	{
-		writeToFile("--------------------------------------------------------------------------");
-		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
-		writeToFile("--------------------------------------------------------------------------");
-	}
-	std::cout << std::endl;
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	writeToFile("--------------------------------------------------------------------------");
+	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+	writeToFile("--------------------------------------------------------------------------");
 }
+
+// Comparison function to sort the queue by remaining time
+struct CompareRemainingTime
+{
+	bool operator()(Process const &p1, Process const &p2)
+	{
+		return p1.remaining_time > p2.remaining_time;
+	}
+};
 
 /**
  * @brief display results for shortest job first algorithm (Non-Preemptive)
@@ -437,26 +440,63 @@ void calculateFCFS()
  */
 void calculateSJFPremptive()
 {
-	Process *processList = sortLinkedList(head, "sjf");
-	float total_waiting_time = 0.0f;
+	std::priority_queue<Process, std::vector<Process>, CompareRemainingTime> queue;
 
-	if (shoudl_write_to_file)
-		writeToFile("--------------- Scheduling Method: Shortest Job First ( Non-Preemptive ) --------------- ");
+	writeToFile("--------------- Scheduling Method: Shortest Job First ( Preemptive ) --------------- ");
+	writeToFile(" Process waiting times [ms]:");
 
-	std::cout << " --------------- Scheduling Method: Shortest Job First ( Non-PREEMPTIVE ) --------------- " << std::endl;
-	std::cout << std::endl;
-	std::cout << " Process Waitng times [ms]: " << std::endl;
-
-	if (shoudl_write_to_file)
+	Process *current_node = head;
+	float total_waiting_time = 0.0f, current_time = 0.0f, elapsed_time = 0.0f;
+	// Add all the processes to the queue
+	while (current_node != NULL)
 	{
-		writeToFile("--------------------------------------------------------------------------");
-		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
-		writeToFile("--------------------------------------------------------------------------");
+		queue.push(*current_node);
+		current_node = current_node->next;
 	}
 
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	// Run the algorithm until the queue is empty
+	while (!queue.empty())
+	{
+		// Get the process with the shortest remaining time
+		Process shortest = queue.top();
+		queue.pop();
+
+		// If the process has already completed, skip it
+		if (shortest.completed)
+			continue;
+		else
+		{
+			// Update the waiting time and turnaround time for the process
+			shortest.waiting_time += shortest.elapsed_time - shortest.arrival_time;
+			shortest.turnaround_time = shortest.waiting_time + shortest.burst_time;
+			shortest.completed = true;
+			shortest.completion_time = shortest.elapsed_time + shortest.burst_time;
+		}
+		writeToFile(" P" + std::to_string(shortest.pid) + ": " + std::to_string(shortest.waiting_time));
+
+		// Add the waiting time of the process to the total waiting time
+		total_waiting_time += shortest.waiting_time;
+
+		// Update the elapsed time for the other processes in the queue
+		std::vector<Process> temp_queue;
+		while (!queue.empty())
+		{
+			Process p = queue.top();
+			queue.pop();
+			p.elapsed_time += shortest.burst_time;
+			temp_queue.push_back(p);
+		}
+		for (int i = 0; i < temp_queue.size(); i++)
+		{
+			queue.push(temp_queue[i]);
+		}
+	}
+
+	// Print the waiting time for each process
+
+	writeToFile("--------------------------------------------------------------------------");
+	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+	writeToFile("--------------------------------------------------------------------------");
 }
 
 /**
@@ -499,39 +539,21 @@ void calculateSJFNonPremptive()
 		completedProcesses.push_back(currentProcess->pid);
 	}
 
-	if (shoudl_write_to_file)
-		writeToFile("--------------- Scheduling Method: Shortest Job First ( Preemptive ) --------------- ");
+	writeToFile("--------------- Scheduling Method: Shortest Job First ( Non-Preemptive ) --------------- ");
+	writeToFile(" Process waiting times [ms]:");
 
-	std::cout << " --------------- Scheduling Method: Shortest Job First ( PREEMPTIVE ) --------------- " << std::endl;
-	std::cout << std::endl;
-
-	if (shoudl_write_to_file)
-		writeToFile(" Process waiting times [ms]: ");
-
-	std::cout << " Process Waitng times [ms]: " << std::endl;
 	// Reset the processList pointer to the first node
 	processList = sorted;
-
 	Process *temp = processList;
 	while (temp != NULL)
 	{
-		if (shoudl_write_to_file)
-			writeToFile(" P" + std::to_string(temp->pid) + ": " + std::to_string(temp->waiting_time));
-
-		std::cout << " P" << temp->pid << ": " << temp->waiting_time << std::endl;
+		writeToFile(" P" + std::to_string(temp->pid) + ": " + std::to_string(temp->waiting_time));
 		temp = temp->next;
 	}
 
-	if (shoudl_write_to_file)
-	{
-		writeToFile("--------------------------------------------------------------------------");
-		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
-		writeToFile("--------------------------------------------------------------------------");
-	}
-
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	writeToFile("--------------------------------------------------------------------------");
+	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+	writeToFile("--------------------------------------------------------------------------");
 }
 
 /**
@@ -541,11 +563,13 @@ void calculateSJFNonPremptive()
  */
 void calculatePriorityNonPreemptive()
 {
-	float total_waiting_time = 0.0f;
+	float total_waiting_time = 0.0f, elapsed_time = 0.0f;
+
 	// Create a copy of the original process list
-	Process *sorted = sortLinkedList(head, "arrival_time");
+	Process *sorted = sortLinkedList(head, "priority");
 	Process *processList = sorted;
 
+	// Initialize variables
 	int currentTime = 0;
 	Process *currentProcess = NULL;
 
@@ -555,8 +579,8 @@ void calculatePriorityNonPreemptive()
 	// Iterate until all processes have completed
 	while (completedProcesses.size() < TOTAL_PROCESS)
 	{
-		// Get the next process with the highest priority
-		currentProcess = getNextHighestPriorityProcess(processList, currentTime, completedProcesses);
+		// Get the next process with the shortest remaining burst time
+		currentProcess = getNextShortestProcess(processList, currentTime, completedProcesses);
 
 		// Update the waiting time for the current process
 		currentProcess->waiting_time = currentTime - currentProcess->arrival_time;
@@ -572,43 +596,37 @@ void calculatePriorityNonPreemptive()
 		completedProcesses.push_back(currentProcess->pid);
 	}
 
+	writeToFile("--------------- Scheduling Method: Priority ( Non-Preemptive ) --------------- ");
+	writeToFile(" Process waiting times [ms]:");
+
 	// Reset the processList pointer to the first node
 	processList = sorted;
-
-	if (shoudl_write_to_file)
-		writeToFile("--------------- Scheduling Method: Priority ( Non-Preemptive) --------------- ");
-
-	std::cout << " --------------- Scheduling Method: Priority ( Non-PREEMPTIVE ) --------------- " << std::endl;
-	std::cout << std::endl;
-
-	if (shoudl_write_to_file)
-		writeToFile("Process waiting times [ms]: ");
-
-	std::cout << " Process Waitng times [ms]: " << std::endl;
-	// Reset the processList pointer to the first node
-	processList = sorted;
-
 	Process *temp = processList;
 	while (temp != NULL)
 	{
-		if (shoudl_write_to_file)
-			writeToFile(" P" + std::to_string(temp->pid) + ": " + std::to_string(temp->waiting_time));
-
-		std::cout << " P" << temp->pid << ": " << temp->waiting_time << std::endl;
+		writeToFile(" P" + std::to_string(temp->pid) + ": " + std::to_string(temp->waiting_time));
 		temp = temp->next;
 	}
 
-	if (shoudl_write_to_file)
-	{
-		writeToFile("--------------------------------------------------------------------------");
-		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
-		writeToFile("--------------------------------------------------------------------------");
-	}
-
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	writeToFile("--------------------------------------------------------------------------");
+	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+	writeToFile("--------------------------------------------------------------------------");
 }
+
+struct CompareArrivalTimeAndPriority
+{
+	bool operator()(Process const &p1, Process const &p2)
+	{
+		if (p1.arrival_time != p2.arrival_time)
+		{
+			return p1.arrival_time > p2.arrival_time;
+		}
+		else
+		{
+			return p1.priority > p2.priority;
+		}
+	}
+};
 
 /**
  * @brief display results for Round Robin scheduling algorithm
@@ -618,92 +636,56 @@ void calculatePriorityNonPreemptive()
 void calculateRoundRobin(float TQ)
 {
 	float total_waiting_time = 0.0f;
-	// Create a queue of processes
-	std::queue<Process *> processQueue;
+	writeToFile("--------------- Scheduling Method: Round Robin ( TQ = " + std::to_string(TQ) + " ) --------------- ");
+	writeToFile(" Process waiting times [ms]:");
 
-	// Initialize variables
-	int currentTime = 0;
-	Process *currentProcess = NULL;
+	std::priority_queue<Process, std::vector<Process>, CompareArrivalTimeAndPriority> queue;
+	Process *current_node = head;
 
-	// Keep track of completed processes
-	std::vector<int> completedProcesses;
-
-	Process *sorted = sortLinkedList(head, "arrival_time");
-
-	// Add all processes to the queue
-	Process *temp = sorted;
-	while (temp != NULL)
+	// Add all the processes to the queue
+	while (current_node != NULL)
 	{
-		processQueue.push(temp);
-		temp = temp->next;
+		current_node->waiting_time = 0;
+		queue.push(*current_node);
+		current_node = current_node->next;
 	}
 
-	// Iterate until all processes have completed
-	while (completedProcesses.size() < TOTAL_PROCESS)
+	// Run the algorithm until the queue is empty
+	while (!queue.empty())
 	{
 		// Get the next process in the queue
-		currentProcess = processQueue.front();
-		processQueue.pop();
+		Process p = queue.top();
+		queue.pop();
 
-		// If the current process has completed, move on to the next one
-		if (std::find(completedProcesses.begin(), completedProcesses.end(), currentProcess->pid) != completedProcesses.end())
+		// If the process has already completed, skip it
+		if (p.completed)
 			continue;
 
-		// Update the waiting time for the current process
-		currentProcess->waiting_time += currentTime - currentProcess->arrival_time;
+		// Decrement the remaining time of the process by the time quantum
+		p.remaining_time -= TQ;
+		p.elapsed_time += TQ;
 
-		// Add the waiting time to the total waiting time
-		total_waiting_time += currentTime - currentProcess->arrival_time;
-
-		// Update the elapsed time for the current process
-		currentProcess->elapsed_time = currentProcess->waiting_time + currentTime - currentProcess->arrival_time;
-
-		// Check if the current process has completed
-		if (currentProcess->burst_time - currentProcess->elapsed_time <= 0)
+		// If the process has completed, update its waiting time and turnaround time
+		if (p.remaining_time <= 0)
 		{
-			// Mark the current process as completed
-			completedProcesses.push_back(currentProcess->pid);
+			p.waiting_time = p.elapsed_time - p.arrival_time;
+			p.turnaround_time = p.waiting_time + p.burst_time;
+			p.completed = true;
+			p.completion_time = p.elapsed_time;
+			writeToFile(" P" + std::to_string(p.pid) + ": " + std::to_string(p.waiting_time));
 		}
+		// Otherwise, add the process back to the end of the queue
 		else
 		{
-			// Add the current process to the end of the queue
-			processQueue.push(currentProcess);
-
-			// Update the arrival time for the current process
-			currentProcess->arrival_time = currentTime + TQ;
+			queue.push(p);
 		}
 
-		// Update the current time
-		currentTime += TQ;
+		// Add the waiting time of the process to the total waiting time
+		total_waiting_time += p.waiting_time;
 	}
-
-	if (shoudl_write_to_file)
-		writeToFile("--------------- Scheduling Method: Round Robin ( TQ = " + std::to_string(TQ) + " ) --------------- ");
-
-	// Display the waiting times for each process
-	std::cout << " --------------- Scheduling Method: Round Robin ( TQ = " << TQ << " ) --------------- " << std::endl;
-	std::cout << std::endl;
-	std::cout << " Process Waitng times [ms]: " << std::endl;
-	temp = sorted;
-	while (temp != NULL)
-	{
-		if (shoudl_write_to_file)
-			writeToFile(" P" + std::to_string(temp->pid) + ": " + std::to_string(temp->waiting_time));
-
-		std::cout << " P" << temp->pid << ": " << temp->waiting_time << std::endl;
-		temp = temp->next;
-	}
-
-	if (shoudl_write_to_file)
-	{
-		writeToFile("--------------------------------------------------------------------------");
-		writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
-		writeToFile("--------------------------------------------------------------------------");
-	}
-
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
-	std::cout << " > Average waiting time: " << total_waiting_time / TOTAL_PROCESS << "ms" << std::endl;
-	std::cout << " -------------------------------------------------------------------------- " << std::endl;
+	writeToFile("--------------------------------------------------------------------------");
+	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+	writeToFile("--------------------------------------------------------------------------");
 }
 
 /**
@@ -729,9 +711,7 @@ Process *getNextHighestPriorityProcess(Process *head, int currentTime, std::vect
 
 		// If the current process has the highest priority and has arrived at the current time, set it as the highest priority process
 		if (highestPriorityProcess == NULL ||
-				(temp->priority > highestPriorityProcess->priority) ||
-				(temp->priority == highestPriorityProcess->priority && temp->arrival_time < highestPriorityProcess->arrival_time) ||
-				(temp->priority == highestPriorityProcess->priority && temp->arrival_time == highestPriorityProcess->arrival_time && temp->burst_time < highestPriorityProcess->burst_time))
+				temp->priority > highestPriorityProcess->priority)
 		{
 			highestPriorityProcess = temp;
 		}
@@ -838,6 +818,13 @@ Process *sortLinkedList(Process *list, std::string method)
 			// TODO: Add support for different priorities
 			if (method.compare("arrival_time") == 0)
 				if (current_node->arrival_time > compare_node->arrival_time)
+					swapNodes(current_node, compare_node);
+			if (method.compare("priority") == 0)
+				if (current_node->priority < compare_node->priority)
+					swapNodes(current_node, compare_node);
+
+			if (method.compare("burst_time") == 0)
+				if (current_node->burst_time > compare_node->burst_time)
 					swapNodes(current_node, compare_node);
 
 			compare_node = compare_node->next;
