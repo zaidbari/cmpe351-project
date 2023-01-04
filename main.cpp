@@ -36,20 +36,20 @@ struct Process
 	Process *prev;
 };
 
+Process *head = nullptr; // PROCESSES linked list head
+Process *getNextShortestProcess(Process *head, int currentTime, std::vector<int> completedProcesses);
+Process *getNextHighestPriorityProcess(Process *head, int currentTime, std::vector<int> completedProcesses);
+Process *sortLinkedList(Process *list, std::string method);
+
 struct filenames
 {
 	char *output_file_name;
 	char *input_file_name;
 };
 
-Process *head = nullptr; // PROCESSES linked list head
-Process *getNextShortestProcess(Process *head, int currentTime, std::vector<int> completedProcesses);
-Process *getNextHighestPriorityProcess(Process *head, int currentTime, std::vector<int> completedProcesses);
-
-Process *sortLinkedList(Process *list, std::string method);
+filenames getCommandLineArguments(int argc, char *argv[]);
 
 /* ------------------------- function defininations ------------------------- */
-filenames getCommandLineArguments(int argc, char *argv[]);
 void readInputFile(std::string input_file_name);
 
 int displayMenu(bool premtive, int type, float TQ);
@@ -77,20 +77,6 @@ int main(int argc, char *argv[])
 
 	/* -------------- get command line arguments and store results -------------- */
 	filenames files = getCommandLineArguments(argc, argv);
-
-	/* ----------------- check if input file exists in directory ---------------- */
-	if (!std::filesystem::exists(files.input_file_name))
-	{
-		system("clear");
-
-		std::cout << " -------------------------------------------------------------------------- " << std::endl;
-		std::cerr << " ERROR: "
-							<< "\"" << files.input_file_name << "\""
-							<< " doesn't exists or is un-reachable" << std::endl;
-		std::cout << " -------------------------------------------------------------------------- " << std::endl;
-
-		exit(EXIT_FAILURE);
-	}
 
 	/* ------------------ read input file and create processes ------------------ */
 	readInputFile(files.input_file_name);
@@ -172,6 +158,22 @@ filenames getCommandLineArguments(int argc, char *argv[])
 
 	char *input_file_name, *output_file_name;
 
+	// Check if both -f and -o arguments are present
+	bool f_present = false;
+	bool o_present = false;
+	for (int i = 1; i < argc; i++)
+	{
+		if (strcmp(argv[i], "-f") == 0)
+			f_present = true;
+		if (strcmp(argv[i], "-o") == 0)
+			o_present = true;
+	}
+	if (!f_present || !o_present)
+	{
+		std::cout << "Error: Please specify both -f and -o arguments." << std::endl;
+		exit(1);
+	}
+
 	for (int i = 1; i < argc; i++)
 		if (i + 1 != argc)
 		{
@@ -181,6 +183,20 @@ filenames getCommandLineArguments(int argc, char *argv[])
 				output_file_name = argv[i + 1];
 			i++;
 		}
+
+	// Validate input file name
+	FILE *input_file = fopen(input_file_name, "r");
+	if (input_file == NULL)
+	{
+		system("clear");
+		std::cout << " -------------------------------------------------------------------------- " << std::endl;
+		std::cerr << " ERROR: "
+							<< "\"" << input_file_name << "\""
+							<< " doesn't exists or is un-reachable" << std::endl;
+		std::cout << " -------------------------------------------------------------------------- " << std::endl;
+		exit(1);
+	}
+	fclose(input_file);
 
 	return filenames{output_file_name, input_file_name};
 }
