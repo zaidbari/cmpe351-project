@@ -402,7 +402,7 @@ void calculateFCFS()
 	Process *current_node = sortLinkedList(head, "arrival_time");
 	float first_response = 0.0f, total_waiting_time = 0.0f;
 
-	writeToFile("--------------- Scheduling Method: First Come First Served --------------- ");
+	writeToFile("--------------- Scheduling Method: First Come First Served ---------------");
 	writeToFile(" Process waiting times [ms]:");
 
 	while (current_node != nullptr)
@@ -442,7 +442,7 @@ void calculateSJFPremptive()
 {
 	std::priority_queue<Process, std::vector<Process>, CompareRemainingTime> queue;
 
-	writeToFile("--------------- Scheduling Method: Shortest Job First ( Preemptive ) --------------- ");
+	writeToFile("---------- Scheduling Method: Shortest Job First ( Preemptive ) ----------");
 	writeToFile(" Process waiting times [ms]:");
 
 	Process *current_node = head;
@@ -538,8 +538,7 @@ void calculateSJFNonPremptive()
 		// Mark the current process as completed
 		completedProcesses.push_back(currentProcess->pid);
 	}
-
-	writeToFile("--------------- Scheduling Method: Shortest Job First ( Non-Preemptive ) --------------- ");
+	writeToFile("-------- Scheduling Method: Shortest Job First ( Non-Preemptive ) --------");
 	writeToFile(" Process waiting times [ms]:");
 
 	// Reset the processList pointer to the first node
@@ -595,8 +594,7 @@ void calculatePriorityNonPreemptive()
 		// Mark the current process as completed
 		completedProcesses.push_back(currentProcess->pid);
 	}
-
-	writeToFile("--------------- Scheduling Method: Priority ( Non-Preemptive ) --------------- ");
+	writeToFile("------------- Scheduling Method: Priority ( Non-Preemptive ) -------------");
 	writeToFile(" Process waiting times [ms]:");
 
 	// Reset the processList pointer to the first node
@@ -636,7 +634,7 @@ struct CompareArrivalTimeAndPriority
 void calculateRoundRobin(float TQ)
 {
 	float total_waiting_time = 0.0f;
-	writeToFile("--------------- Scheduling Method: Round Robin ( TQ = " + std::to_string(TQ) + " ) --------------- ");
+	writeToFile("------------ Scheduling Method: Round Robin ( TQ = " + std::to_string(TQ) + " ) ------------ ");
 	writeToFile(" Process waiting times [ms]:");
 
 	std::priority_queue<Process, std::vector<Process>, CompareArrivalTimeAndPriority> queue;
