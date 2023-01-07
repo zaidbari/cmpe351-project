@@ -38,9 +38,33 @@ struct Process
 };
 
 Process *head = nullptr; // PROCESSES linked list head
+Process *sortLinkedList(Process *list, std::string method);
 Process *getNextShortestProcess(Process *head, int currentTime, std::vector<int> completedProcesses);
 Process *getNextHighestPriorityProcess(Process *head, int currentTime, std::vector<int> completedProcesses);
-Process *sortLinkedList(Process *list, std::string method);
+
+struct CompareArrivalTimeAndPriority
+{
+	bool operator()(Process const &p1, Process const &p2)
+	{
+		if (p1.arrival_time != p2.arrival_time)
+		{
+			return p1.arrival_time > p2.arrival_time;
+		}
+		else
+		{
+			return p1.priority > p2.priority;
+		}
+	}
+};
+
+// Comparison function to sort the queue by remaining time
+struct CompareRemainingTime
+{
+	bool operator()(Process const &p1, Process const &p2)
+	{
+		return p1.remaining_time > p2.remaining_time;
+	}
+};
 
 struct filenames
 {
@@ -62,6 +86,7 @@ void calculateFCFS();
 void calculateSJFNonPremptive();
 void calculateSJFPremptive();
 void calculatePriorityNonPreemptive();
+void calculatePriorityPreemptive();
 void calculateRoundRobin(float TQ);
 
 /**
@@ -131,6 +156,8 @@ int main(int argc, char *argv[])
 				system("clear");
 				if (!isPreemptive)
 					calculatePriorityNonPreemptive();
+				else
+					calculatePriorityPreemptive();
 				break;
 			case 4: // case for displaying round robin scheduling algorithm
 				system("clear");
@@ -392,19 +419,10 @@ void createProcess(Process **head, int pid, float arrival_time, float burst_time
 	}
 }
 
-/**
- * @brief display results for first come first serve algorithm
- *
- * @return void
- */
-void calculateFCFS()
+float simulateFCFS()
 {
 	Process *current_node = sortLinkedList(head, "arrival_time");
 	float first_response = 0.0f, total_waiting_time = 0.0f;
-
-	writeToFile("--------------- Scheduling Method: First Come First Served ---------------");
-	writeToFile(" Process waiting times [ms]:");
-
 	while (current_node != nullptr)
 	{
 		if (current_node->pid == 1)
@@ -419,32 +437,30 @@ void calculateFCFS()
 		current_node = current_node->next;
 	}
 
+	return total_waiting_time;
+}
+
+/**
+ * @brief display results for first come first serve algorithm
+ *
+ * @return void
+ */
+void calculateFCFS()
+{
+
+	writeToFile("--------------- Scheduling Method: First Come First Served ---------------");
+	writeToFile(" Process waiting times [ms]:");
+
+	float total_waiting_time = simulateFCFS();
+
 	writeToFile("--------------------------------------------------------------------------");
 	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
 	writeToFile("--------------------------------------------------------------------------");
 }
 
-// Comparison function to sort the queue by remaining time
-struct CompareRemainingTime
-{
-	bool operator()(Process const &p1, Process const &p2)
-	{
-		return p1.remaining_time > p2.remaining_time;
-	}
-};
-
-/**
- * @brief display results for shortest job first algorithm (Non-Preemptive)
- *
- * @return void
- */
-void calculateSJFPremptive()
+float simulateSJFPreemptive()
 {
 	std::priority_queue<Process, std::vector<Process>, CompareRemainingTime> queue;
-
-	writeToFile("---------- Scheduling Method: Shortest Job First ( Preemptive ) ----------");
-	writeToFile(" Process waiting times [ms]:");
-
 	Process *current_node = head;
 	float total_waiting_time = 0.0f, current_time = 0.0f, elapsed_time = 0.0f;
 	// Add all the processes to the queue
@@ -492,20 +508,29 @@ void calculateSJFPremptive()
 		}
 	}
 
-	// Print the waiting time for each process
+	return total_waiting_time;
+}
+/**
+ * @brief display results for shortest job first algorithm (Non-Preemptive)
+ *
+ * @return void
+ */
+void calculateSJFPremptive()
+{
+
+	writeToFile("---------- Scheduling Method: Shortest Job First ( Preemptive ) ----------");
+	writeToFile(" Process waiting times [ms]:");
+
+	float total_waiting_time = simulateSJFPreemptive();
 
 	writeToFile("--------------------------------------------------------------------------");
 	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
 	writeToFile("--------------------------------------------------------------------------");
 }
 
-/**
- * @brief display results for Shortest Job First algorithm (Preemptive)
- *
- * @return void
- */
-void calculateSJFNonPremptive()
+float simulateSJFNonPremptive()
 {
+
 	float total_waiting_time = 0.0f, elapsed_time = 0.0f;
 
 	// Create a copy of the original process list
@@ -538,9 +563,6 @@ void calculateSJFNonPremptive()
 		// Mark the current process as completed
 		completedProcesses.push_back(currentProcess->pid);
 	}
-	writeToFile("-------- Scheduling Method: Shortest Job First ( Non-Preemptive ) --------");
-	writeToFile(" Process waiting times [ms]:");
-
 	// Reset the processList pointer to the first node
 	processList = sorted;
 	Process *temp = processList;
@@ -550,17 +572,27 @@ void calculateSJFNonPremptive()
 		temp = temp->next;
 	}
 
+	return total_waiting_time;
+}
+
+/**
+ * @brief display results for Shortest Job First algorithm (Preemptive)
+ *
+ * @return void
+ */
+void calculateSJFNonPremptive()
+{
+	writeToFile("-------- Scheduling Method: Shortest Job First ( Non-Preemptive ) --------");
+	writeToFile(" Process waiting times [ms]:");
+
+	float total_waiting_time = simulateSJFNonPremptive();
+
 	writeToFile("--------------------------------------------------------------------------");
 	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
 	writeToFile("--------------------------------------------------------------------------");
 }
 
-/**
- * @brief display results for priority scheduling algorithm (Non-Preemptive)
- *
- * @return void
- */
-void calculatePriorityNonPreemptive()
+float simulateProrityNonPreemptive()
 {
 	float total_waiting_time = 0.0f, elapsed_time = 0.0f;
 
@@ -594,8 +626,6 @@ void calculatePriorityNonPreemptive()
 		// Mark the current process as completed
 		completedProcesses.push_back(currentProcess->pid);
 	}
-	writeToFile("------------- Scheduling Method: Priority ( Non-Preemptive ) -------------");
-	writeToFile(" Process waiting times [ms]:");
 
 	// Reset the processList pointer to the first node
 	processList = sorted;
@@ -606,25 +636,39 @@ void calculatePriorityNonPreemptive()
 		temp = temp->next;
 	}
 
+	return total_waiting_time;
+}
+/**
+ * @brief display results for priority scheduling algorithm (Non-Preemptive)
+ *
+ * @return void
+ */
+void calculatePriorityNonPreemptive()
+{
+	writeToFile("------------- Scheduling Method: Priority ( Non-Preemptive ) -------------");
+	writeToFile(" Process waiting times [ms]:");
+
+	float total_waiting_time = simulateProrityNonPreemptive();
+
 	writeToFile("--------------------------------------------------------------------------");
 	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
 	writeToFile("--------------------------------------------------------------------------");
 }
 
-struct CompareArrivalTimeAndPriority
+void calculatePriorityPreemptive()
 {
-	bool operator()(Process const &p1, Process const &p2)
-	{
-		if (p1.arrival_time != p2.arrival_time)
-		{
-			return p1.arrival_time > p2.arrival_time;
-		}
-		else
-		{
-			return p1.priority > p2.priority;
-		}
-	}
-};
+
+	Process *sorted = sortLinkedList(head, "priority");
+
+	writeToFile("---------- Scheduling Method: Prority ( Preemptive ) ----------");
+	writeToFile(" Process waiting times [ms]:");
+
+	float total_waiting_time = 0.0f;
+
+	writeToFile("--------------------------------------------------------------------------");
+	writeToFile(" > Average waiting time: " + std::to_string(total_waiting_time / TOTAL_PROCESS) + "ms");
+	writeToFile("--------------------------------------------------------------------------");
+}
 
 /**
  * @brief display results for Round Robin scheduling algorithm
@@ -817,6 +861,7 @@ Process *sortLinkedList(Process *list, std::string method)
 			if (method.compare("arrival_time") == 0)
 				if (current_node->arrival_time > compare_node->arrival_time)
 					swapNodes(current_node, compare_node);
+
 			if (method.compare("priority") == 0)
 				if (current_node->priority < compare_node->priority)
 					swapNodes(current_node, compare_node);
