@@ -175,8 +175,7 @@ int main(int argc, char *argv[])
 			system("clear");
 			calculateFCFS();
 			calculateSJFNonPremptive();
-			calculateSJFPremptive();
-
+			// calculateSJFPremptive();
 			calculatePriorityNonPreemptive();
 			calculateRoundRobin(time_quantum);
 			break;
